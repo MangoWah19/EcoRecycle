@@ -120,17 +120,22 @@ import com.example.fyp1.*
 
 @Composable
 fun BottomNavigationBar(navController: NavController) {
-    val items = listOf("home", "rewards", "profile")
-    val icons = listOf(Icons.Default.Home, Icons.Default.CardGiftcard, Icons.Default.Person)
+    val items = listOf(
+        Triple("HOME", "home", Icons.Default.Home),
+        Triple("RECYCLE", "submit_recycling", Icons.Default.Recycling),
+        Triple("MISSIONS", "achievements", Icons.Default.Stars),
+        Triple("LEARN", "recycling_guide", Icons.Default.Description),
+        Triple("PROFILE", "profile", Icons.Default.Person)
+    )
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
     NavigationBar(containerColor = Color.White) {
-        items.forEachIndexed { index, route ->
+        items.forEach { (label, route, icon) ->
             NavigationBarItem(
                 selected = currentRoute == route,
                 onClick = { if (currentRoute != route) navController.navigate(route) },
-                icon = { Icon(icons[index], null) },
-                label = { Text(route.replaceFirstChar { it.uppercase() }) }
+                icon = { Icon(icon, null) },
+                label = { Text(label) }
             )
         }
     }
