@@ -134,6 +134,16 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
     var isSubmitting by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val backStackEntry by navController.currentBackStackEntryAsState()
+    val scannedQrResult = backStackEntry?.savedStateHandle?.get<String>("qr_scan_result")
+
+    LaunchedEffect(scannedQrResult) {
+        scannedQrResult?.let { value ->
+            Toast.makeText(context, "Scanned station: $value", Toast.LENGTH_SHORT).show()
+            // TODO: Store scanned station identifier when deposit submission supports it.
+            backStackEntry?.savedStateHandle?.remove<String>("qr_scan_result")
+        }
+    }
 
     val submitDeposit: () -> Unit = {
         val w = weight.toDoubleOrNull()
@@ -195,11 +205,7 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
             }
 
             item {
-                ScanStationCard(
-                    onClick = {
-                        // TODO: Navigate to QR Scanner Screen
-                    }
-                )
+                ScanStationCard(onClick = { navController.navigate("qr_scanner") })
             }
 
             item {
