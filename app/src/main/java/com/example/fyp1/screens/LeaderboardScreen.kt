@@ -124,129 +124,186 @@ import com.example.fyp1.components.*
 fun LeaderboardScreen(navController: NavController, viewModel: MainViewModel) {
     val tabs = listOf("Daily", "Weekly", "All-Time")
     val timeframeKeys = listOf("daily", "weekly", "all_time")
-    var selectedTab by remember { mutableIntStateOf(2) }  // default: All-Time
+    var selectedTab by remember { mutableIntStateOf(2) }
 
     LaunchedEffect(selectedTab) {
         viewModel.fetchLeaderboard(timeframeKeys[selectedTab])
     }
 
     Scaffold(
-        topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Leaderboard", fontWeight = FontWeight.Bold, color = Color.White) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
-                    }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFF1DB954)
-                )
-            )
-        }
+        bottomBar = { BottomNavigationBar(navController) }
     ) { padding ->
-        Column(
+        Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFFF8FCF9))
+                .background(Color(0xFFF5F7F5))
         ) {
-            // Header
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(
-                        Color(0xFF1DB954),
-                        RoundedCornerShape(bottomStart = 32.dp, bottomEnd = 32.dp)
-                    )
-                    .padding(vertical = 16.dp, horizontal = 16.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Default.EmojiEvents,
-                        contentDescription = null,
-                        tint = Color(0xFFFFD700),
-                        modifier = Modifier.size(40.dp)
-                    )
-                    Spacer(Modifier.height(4.dp))
-                    Text(
-                        "Top Recyclers",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                    Text(
-                        when (timeframeKeys[selectedTab]) {
-                            "daily"  -> "Points earned today"
-                            "weekly" -> "Points earned this week"
-                            else     -> "Based on lifetime recycling points"
-                        },
-                        color = Color.White.copy(alpha = 0.8f),
-                        fontSize = 11.sp
-                    )
-                }
-            }
+            Column(modifier = Modifier.fillMaxSize()) {
+                LeaderboardHero(
+                    selectedTimeframe = timeframeKeys[selectedTab],
+                    onBack = { navController.popBackStack() }
+                )
 
-            // Daily / Weekly / All-Time tabs
-            TabRow(
-                selectedTabIndex = selectedTab,
-                containerColor = Color.White
-            ) {
-                tabs.forEachIndexed { index, title ->
-                    Tab(
-                        selected = selectedTab == index,
-                        onClick = { selectedTab = index },
-                        text = {
-                            Text(
-                                title,
-                                fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal
-                            )
+                Spacer(Modifier.height(42.dp))
+
+                when {
+                    viewModel.isLoadingLeaderboard -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(color = Color(0xFF006B1B))
                         }
-                    )
+                    }
+
+                    viewModel.leaderboardWithRank.isEmpty() -> {
+                        EmptyLeaderboardState()
+                    }
+
+                    else -> {
+                        LazyColumn(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 22.dp),
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            items(viewModel.leaderboardWithRank) { entry ->
+                                LeaderboardStitchRow(
+                                    entry = entry,
+                                    timeframe = timeframeKeys[selectedTab]
+                                )
+                            }
+                            item {
+                                Text(
+                                    text = "* Minimum $MIN_ACTIVITY_LOGS approved submissions required to appear",
+                                    fontSize = 10.sp,
+                                    color = Color(0xFF747776),
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 8.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
 
-            if (viewModel.isLoadingLeaderboard) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
+            LeaderboardTabs(
+                tabs = tabs,
+                selectedTab = selectedTab,
+                onTabSelected = { selectedTab = it },
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = 238.dp, start = 22.dp, end = 22.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun LeaderboardHero(selectedTimeframe: String, onBack: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(280.dp)
+            .background(
+                Color(0xFF006B1B),
+                RoundedCornerShape(bottomStart = 0.dp, bottomEnd = 0.dp)
+            )
+    ) {
+        IconButton(
+            onClick = onBack,
+            modifier = Modifier
+                .padding(start = 16.dp, top = 18.dp)
+                .size(48.dp)
+                .background(Color.White.copy(alpha = 0.18f), CircleShape)
+                .align(Alignment.TopStart)
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = Color.White
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Surface(
+                modifier = Modifier.size(64.dp),
+                shape = CircleShape,
+                color = Color.White.copy(alpha = 0.12f),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.20f))
+            ) {
+                Icon(
+                    Icons.Default.EmojiEvents,
+                    contentDescription = null,
+                    tint = Color(0xFF9BFC96),
+                    modifier = Modifier.padding(15.dp)
+                )
+            }
+
+            Spacer(Modifier.height(22.dp))
+
+            Text(
+                text = "Top Recyclers",
+                color = Color(0xFFD1FFC8),
+                fontSize = 30.sp,
+                fontWeight = FontWeight.ExtraBold,
+                textAlign = TextAlign.Center
+            )
+            Text(
+                text = when (selectedTimeframe) {
+                    "daily" -> "Based on recycling points earned today."
+                    "weekly" -> "Based on recycling points earned this week."
+                    else -> "Based on lifetime recycling points earned across campus."
+                },
+                color = Color(0xCC9BFC96),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun LeaderboardTabs(
+    tabs: List<String>,
+    selectedTab: Int,
+    onTabSelected: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        shape = CircleShape,
+        color = Color.White,
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.70f)),
+        shadowElevation = 8.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(6.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            tabs.forEachIndexed { index, title ->
+                val selected = selectedTab == index
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(42.dp)
+                        .clickable { onTabSelected(index) },
+                    shape = CircleShape,
+                    color = if (selected) Color(0xFF006B1B) else Color.Transparent,
+                    shadowElevation = if (selected) 4.dp else 0.dp
                 ) {
-                    CircularProgressIndicator(color = Color(0xFF1DB954))
-                }
-            } else if (viewModel.leaderboardWithRank.isEmpty()) {
-                Box(
-                    modifier = Modifier.fillMaxSize(),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text("No data available yet", color = Color.Gray, fontSize = 14.sp)
-                        Spacer(Modifier.height(8.dp))
+                    Box(contentAlignment = Alignment.Center) {
                         Text(
-                            "Need 闂?$MIN_ACTIVITY_LOGS approved submissions to appear",
-                            color = Color.Gray,
-                            fontSize = 12.sp
-                        )
-                    }
-                }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    items(viewModel.leaderboardWithRank) { entry ->
-                        LeaderboardRowWithRankChange(
-                            entry = entry,
-                            timeframe = timeframeKeys[selectedTab]
-                        )
-                    }
-                    item {
-                        Spacer(Modifier.height(8.dp))
-                        Text(
-                            "* Minimum $MIN_ACTIVITY_LOGS approved submissions required to appear",
-                            fontSize = 10.sp,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(horizontal = 4.dp)
+                            text = title,
+                            color = if (selected) Color.White else Color(0xFF595C5B),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
                         )
                     }
                 }
@@ -255,3 +312,159 @@ fun LeaderboardScreen(navController: NavController, viewModel: MainViewModel) {
     }
 }
 
+@Composable
+private fun LeaderboardStitchRow(entry: LeaderboardEntryWithRank, timeframe: String) {
+    val rankColor = leaderboardRankColor(entry.rank)
+    val points = if (timeframe == "all_time") entry.lifetime_points else entry.total_points
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = CircleShape,
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
+        border = BorderStroke(1.dp, Color(0xFFE6E9E7))
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = 8.dp, top = 8.dp, end = 18.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.size(68.dp)) {
+                Surface(
+                    modifier = Modifier
+                        .size(60.dp)
+                        .align(Alignment.Center),
+                    shape = CircleShape,
+                    color = Color(0xFFF5F7F5),
+                    border = BorderStroke(4.dp, rankColor.copy(alpha = 0.25f))
+                ) {
+                    Icon(
+                        Icons.Default.Person,
+                        contentDescription = null,
+                        tint = Color(0xFF2C2F2E),
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+                Surface(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .align(Alignment.BottomEnd),
+                    shape = CircleShape,
+                    color = rankColor,
+                    shadowElevation = 4.dp
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = entry.rank.toString(),
+                            color = if (entry.rank == 3) Color.White else Color(0xFF2C2F2E),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.width(14.dp))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = entry.full_name ?: "Student",
+                    color = Color(0xFF2C2F2E),
+                    fontSize = 15.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        Icons.Default.Stars,
+                        contentDescription = null,
+                        tint = rankColor,
+                        modifier = Modifier.size(12.dp)
+                    )
+                    Spacer(Modifier.width(5.dp))
+                    Text(
+                        text = leaderboardTierLabel(entry.rank).uppercase(),
+                        color = Color(0xFF747776),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 0.7.sp
+                    )
+                }
+            }
+
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "%,d".format(points),
+                    color = if (entry.rank == 1) Color(0xFF006B1B) else Color(0xFF2C2F2E),
+                    fontSize = 19.sp,
+                    fontWeight = FontWeight.Black
+                )
+                Text(
+                    text = "PTS",
+                    color = Color(0xFF747776),
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun EmptyLeaderboardState() {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Card(
+            shape = RoundedCornerShape(28.dp),
+            colors = CardDefaults.cardColors(containerColor = Color.White),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(28.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Icon(
+                    Icons.Default.EmojiEvents,
+                    contentDescription = null,
+                    tint = Color(0xFF006B1B),
+                    modifier = Modifier.size(38.dp)
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "No data available yet",
+                    color = Color(0xFF2C2F2E),
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    text = "Need $MIN_ACTIVITY_LOGS approved submissions to appear",
+                    color = Color(0xFF747776),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+private fun leaderboardRankColor(rank: Int): Color = when (rank) {
+    1 -> Color(0xFFFFD700)
+    2 -> Color(0xFFC0C0C0)
+    3 -> Color(0xFFCD7F32)
+    else -> Color(0xFF006B1B)
+}
+
+private fun leaderboardTierLabel(rank: Int): String = when (rank) {
+    1 -> "Legendary Tier"
+    2 -> "Pro Recycler"
+    3 -> "Elite Member"
+    else -> "Eco Recycler"
+}
