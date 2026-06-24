@@ -199,73 +199,308 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
     )
 
     val unlockedCount = allAchievements.count { it.isUnlocked }
-    val totalCount    = allAchievements.size
+    val totalCount = allAchievements.size
+    val progress = if (totalCount > 0) unlockedCount.toFloat() / totalCount else 0f
 
     Scaffold(
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text("Achievements", fontWeight = FontWeight.Bold, color = Color.White) },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back", tint = Color.White)
+            Surface(color = Color(0xFFF5F7F5)) {
+                Column {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 14.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { navController.popBackStack() }) {
+                            Icon(
+                                Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Back",
+                                tint = Color(0xFF006B1B)
+                            )
+                        }
+                        Text(
+                            text = "Achievements",
+                            color = Color(0xFF006B1B),
+                            fontWeight = FontWeight.ExtraBold,
+                            fontSize = 18.sp,
+                            textAlign = TextAlign.Center,
+                            modifier = Modifier.weight(1f)
+                        )
+                        Spacer(Modifier.size(48.dp))
                     }
-                },
-                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                    containerColor = Color(0xFF1DB954)
-                )
-            )
-        }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(1.dp)
+                            .background(Color(0xFFE6E9E7))
+                    )
+                }
+            }
+        },
+        bottomBar = { BottomNavigationBar(navController) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .background(Color(0xFFF8FCF9))
-                .padding(horizontal = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .background(Color(0xFFF5F7F5))
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            // Summary header
             item {
-                Spacer(Modifier.height(12.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = Color(0xFF1DB954)),
-                    shape = RoundedCornerShape(16.dp)
-                ) {
-                    Column(
-                        modifier = Modifier.padding(20.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            text = "$unlockedCount / $totalCount Unlocked",
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 22.sp
-                        )
-                        Spacer(Modifier.height(10.dp))
-                        LinearProgressIndicator(
-                            progress = { if (totalCount > 0) unlockedCount.toFloat() / totalCount else 0f },
-                            modifier = Modifier.fillMaxWidth().height(10.dp),
-                            color = Color(0xFFFFD700),
-                            trackColor = Color.White.copy(alpha = 0.3f)
-                        )
-                        Spacer(Modifier.height(6.dp))
-                        Text(
-                            text = "${totalCount - unlockedCount} more to go!",
-                            color = Color.White.copy(alpha = 0.85f),
-                            fontSize = 13.sp
-                        )
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
+                Spacer(Modifier.height(8.dp))
+                AchievementSummaryCard(
+                    unlockedCount = unlockedCount,
+                    totalCount = totalCount,
+                    progress = progress
+                )
             }
 
             items(allAchievements) { achievement ->
-                AchievementCard(achievement)
+                StitchAchievementCard(achievement)
             }
 
-            item { Spacer(Modifier.height(16.dp)) }
+            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
 
+@Composable
+private fun AchievementSummaryCard(
+    unlockedCount: Int,
+    totalCount: Int,
+    progress: Float
+) {
+    val percentage = (progress * 100).toInt()
+    val remaining = (totalCount - unlockedCount).coerceAtLeast(0)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(30.dp),
+        colors = CardDefaults.cardColors(containerColor = Color(0xFF00751D)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+    ) {
+        Column(modifier = Modifier.padding(24.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Bottom
+            ) {
+                Column {
+                    Text(
+                        text = "LIFETIME PROGRESS",
+                        color = Color(0xCCD1FFC8),
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Black,
+                        letterSpacing = 1.2.sp
+                    )
+                    Text(
+                        text = "$unlockedCount / $totalCount",
+                        color = Color.White,
+                        fontSize = 34.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                    Text(
+                        text = "Unlocked",
+                        color = Color.White,
+                        fontSize = 30.sp,
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                }
+                Surface(
+                    modifier = Modifier.size(34.dp),
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.26f)
+                ) {
+                    Icon(
+                        Icons.Default.Stars,
+                        contentDescription = null,
+                        tint = Color(0xFFD1FFC8),
+                        modifier = Modifier.padding(8.dp)
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth(0.48f)
+                    .height(12.dp),
+                color = Color(0xFF86FAAC),
+                trackColor = Color(0xFF005D16)
+            )
+
+            Spacer(Modifier.height(10.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (remaining == 0) "All complete!" else "$remaining more to go!",
+                    color = Color(0xFFD1FFC8),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+                Text(
+                    text = "$percentage%",
+                    color = Color.White,
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StitchAchievementCard(achievement: AchievementBadge) {
+    val progress = achievementProgress(achievement)
+    val percentage = (progress * 100).toInt()
+    val remaining = (achievement.target - achievement.current).coerceAtLeast(0.0)
+    val accent = achievementAccentColor(achievement.type)
+    val completed = achievement.isUnlocked || progress >= 1f
+    val container = if (completed) Color(0xFFD8FFE2) else Color.White
+    val border = if (completed) Color(0xFF86FAAC) else Color(0xFFE6E9E7)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(24.dp),
+        colors = CardDefaults.cardColors(containerColor = container),
+        elevation = CardDefaults.cardElevation(defaultElevation = if (completed) 2.dp else 3.dp),
+        border = BorderStroke(if (completed) 2.dp else 1.dp, border)
+    ) {
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Surface(
+                        modifier = Modifier.size(54.dp),
+                        shape = CircleShape,
+                        color = accent.copy(alpha = if (completed) 0.20f else 0.12f)
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(text = achievement.icon, fontSize = 23.sp)
+                        }
+                    }
+                    Spacer(Modifier.width(14.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = achievement.title,
+                            color = if (completed) Color(0xFF006A38) else Color(0xFF2C2F2E),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = achievement.description,
+                            color = Color(0xFF747776),
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+
+                if (completed) {
+                    Surface(
+                        modifier = Modifier.size(34.dp),
+                        shape = CircleShape,
+                        color = Color(0xFF006B1B)
+                    ) {
+                        Icon(
+                            Icons.Default.EmojiEvents,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(18.dp))
+
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(if (completed) 7.dp else 8.dp),
+                color = if (completed) Color(0xFF006A38) else accent,
+                trackColor = if (completed) Color(0x3386FAAC) else Color(0xFFE6E9E7)
+            )
+
+            Spacer(Modifier.height(12.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = if (completed) "COMPLETED!" else "${formatAchievementNumber(achievement.current)} / ${formatAchievementNumber(achievement.target)} ${achievement.unit}",
+                    color = if (completed) Color(0xFF006A38) else Color(0xFF747776),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black,
+                    letterSpacing = if (completed) 0.8.sp else 0.sp
+                )
+
+                if (!completed) {
+                    Surface(
+                        shape = CircleShape,
+                        color = accent.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "${formatAchievementNumber(remaining)} ${achievement.unit} left",
+                            color = accent,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+
+                Text(
+                    text = "$percentage%",
+                    color = if (completed) Color(0xFF006A38) else Color(0xFF747776),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+        }
+    }
+}
+
+private fun achievementProgress(achievement: AchievementBadge): Float {
+    return if (achievement.target > 0) {
+        (achievement.current / achievement.target).toFloat().coerceIn(0f, 1f)
+    } else {
+        1f
+    }
+}
+
+private fun achievementAccentColor(type: String): Color = when (type) {
+    "plastic_king" -> Color(0xFF60A5FA)
+    "paper_master" -> Color(0xFFFF8A3D)
+    "glass_guard" -> Color(0xFF2DD4BF)
+    "eco_warrior" -> Color(0xFF43A047)
+    "week_streak" -> Color(0xFFFF7043)
+    "first_redemption" -> Color(0xFF9C27B0)
+    "reward_collector" -> Color(0xFFFFB300)
+    else -> Color(0xFF006B1B)
+}
+
+private fun formatAchievementNumber(value: Double): String {
+    return if (value == value.toLong().toDouble()) {
+        value.toLong().toString()
+    } else {
+        String.format("%.1f", value)
+    }
+}
