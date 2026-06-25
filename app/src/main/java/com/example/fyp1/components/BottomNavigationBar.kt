@@ -129,15 +129,80 @@ fun BottomNavigationBar(navController: NavController) {
     )
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
-    NavigationBar(containerColor = Color.White) {
-        items.forEach { (label, route, icon) ->
-            NavigationBarItem(
-                selected = currentRoute == route,
-                onClick = { if (currentRoute != route) navController.navigate(route) },
-                icon = { Icon(icon, null) },
-                label = { Text(label) }
-            )
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color.Transparent)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = CircleShape,
+            color = Color.White,
+            shadowElevation = 10.dp
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 8.dp, vertical = 7.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+            items.forEach { (label, route, icon) ->
+                val selected = currentRoute == route
+                BottomNavPillItem(
+                    label = label,
+                    icon = icon,
+                    selected = selected,
+                    onClick = { if (!selected) navController.navigate(route) }
+                )
+            }
+            }
         }
     }
 }
 
+@Composable
+private fun BottomNavPillItem(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit
+) {
+    val itemModifier = if (selected) {
+        Modifier
+            .height(44.dp)
+            .width(72.dp)
+            .background(Color(0xFF00751D), CircleShape)
+            .clickable { onClick() }
+    } else {
+        Modifier
+            .height(44.dp)
+            .width(46.dp)
+            .clickable { onClick() }
+    }
+
+    Column(
+        modifier = itemModifier.padding(horizontal = 3.dp, vertical = 5.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = label,
+            tint = if (selected) Color.White else Color(0xFF747776),
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(Modifier.height(2.dp))
+        Text(
+            text = label,
+            color = if (selected) Color.White else Color(0xFF747776),
+            fontSize = if (selected) 8.5.sp else 8.sp,
+            fontWeight = FontWeight.Black,
+            textAlign = TextAlign.Center,
+            maxLines = 1
+        )
+    }
+}

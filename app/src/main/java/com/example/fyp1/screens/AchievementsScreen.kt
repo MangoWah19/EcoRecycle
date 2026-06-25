@@ -245,7 +245,7 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
                 .fillMaxSize()
                 .padding(padding)
                 .background(Color(0xFFF5F7F5))
-                .padding(horizontal = 20.dp),
+                .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item {
