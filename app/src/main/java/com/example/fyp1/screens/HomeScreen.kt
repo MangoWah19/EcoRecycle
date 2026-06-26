@@ -118,7 +118,7 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     SectionLabel("Recent History")
-                    TextButton(onClick = { }) {
+                    TextButton(onClick = { navController.navigate("recycling_history") }) {
                         Text(
                             text = "VIEW ALL",
                             color = Color(0xFF006B1B),
@@ -131,18 +131,14 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
             }
 
             if (viewModel.recyclingHistory.isEmpty() && !viewModel.isRefreshing) {
-                item {
-                    EmptyHistoryCard()
-                }
+                item { EmptyHistoryCard() }
             }
 
             items(viewModel.recyclingHistory.take(3)) { log ->
                 RecentHistoryCard(log)
             }
 
-            item {
-                Spacer(Modifier.height(8.dp))
-            }
+            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }

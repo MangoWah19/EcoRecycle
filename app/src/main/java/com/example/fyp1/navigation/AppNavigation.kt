@@ -149,6 +149,7 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         composable("rewards") { RewardsScreen(navController, viewModel) }
         composable("profile") { ProfileScreen(navController, viewModel) }
         composable("submit_recycling") { SubmitRecyclingScreen(navController, viewModel) }
+        composable("recycling_history") { RecyclingHistoryScreen(navController, viewModel) }
         composable("qr_scanner") { QRScannerScreen(navController) }
         composable("recycling_guide") { RecyclingGuideScreen(navController) }
         composable("guide_detail/{material}") { backStack ->
