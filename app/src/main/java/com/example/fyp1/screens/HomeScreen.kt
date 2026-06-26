@@ -20,12 +20,16 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.EmojiEvents
+import androidx.compose.material.icons.filled.Hardware
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -396,7 +400,7 @@ private fun RecentHistoryCard(log: RecyclingLog) {
                 color = Color(0x1A006B1B)
             ) {
                 Icon(
-                    Icons.Default.History,
+                    imageVector = homeMaterialIcon(log.material_type),
                     contentDescription = null,
                     tint = Color(0xFF006B1B),
                     modifier = Modifier.padding(10.dp)
@@ -431,5 +435,14 @@ private fun RecentHistoryCard(log: RecyclingLog) {
                 )
             }
         }
+    }
+}
+private fun homeMaterialIcon(materialType: String): ImageVector {
+    return when (materialType.lowercase()) {
+        "plastic" -> Icons.Filled.LocalDrink
+        "paper" -> Icons.Filled.Description
+        "glass" -> Icons.Filled.WineBar
+        "metal" -> Icons.Filled.Hardware
+        else -> Icons.Filled.Recycling
     }
 }
