@@ -63,7 +63,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
-import com.example.fyp1.components.BottomNavigationBar
+import com.example.fyp1.components.FloatingBottomNavigationScaffold
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -93,12 +93,13 @@ fun QRScannerScreen(navController: NavController) {
         }
     }
 
-    Scaffold(bottomBar = { BottomNavigationBar(navController) }) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .background(Color.Black)
+                .padding(padding)
+                .padding(bottom = 110.dp)
         ) {
             if (hasCameraPermission) {
                 QRScannerCameraPreview(navController = navController)

@@ -191,12 +191,13 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
         }
     }
 
-    Scaffold(bottomBar = { BottomNavigationBar(navController) }) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .background(Color(0xFFF5F7F5))
+                .padding(padding)
+                .padding(bottom = 110.dp)
                 .padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {

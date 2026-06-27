@@ -55,7 +55,7 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fyp1.MainViewModel
 import com.example.fyp1.RecyclingLog
-import com.example.fyp1.components.BottomNavigationBar
+import com.example.fyp1.components.FloatingBottomNavigationScaffold
 
 private enum class RecyclingHistoryTab(val label: String) {
     All("ALL"),
@@ -82,15 +82,15 @@ fun RecyclingHistoryScreen(navController: NavController, viewModel: MainViewMode
     val pendingCount = logs.count { it.isPendingStatus() }
     val approvedCount = logs.count { it.status.equals("Approved", ignoreCase = true) }
 
-    Scaffold(
+    FloatingBottomNavigationScaffold(navController = navController,
         topBar = { RecyclingHistoryTopBar(onBack = { navController.popBackStack() }) },
-        bottomBar = { BottomNavigationBar(navController) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .background(Color(0xFFF5F7F5))
+                .padding(padding)
+                .padding(bottom = 110.dp)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {

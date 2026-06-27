@@ -202,7 +202,7 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
     val totalCount = allAchievements.size
     val progress = if (totalCount > 0) unlockedCount.toFloat() / totalCount else 0f
 
-    Scaffold(
+    FloatingBottomNavigationScaffold(navController = navController,
         topBar = {
             Surface(color = Color(0xFFF5F7F5)) {
                 Column {
@@ -238,13 +238,13 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
                 }
             }
         },
-        bottomBar = { BottomNavigationBar(navController) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .background(Color(0xFFF5F7F5))
+                .padding(padding)
+                .padding(bottom = 110.dp)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {

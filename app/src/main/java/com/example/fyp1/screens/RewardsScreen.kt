@@ -57,7 +57,7 @@ import coil.compose.AsyncImage
 import com.example.fyp1.MainViewModel
 import com.example.fyp1.Redemption
 import com.example.fyp1.Reward
-import com.example.fyp1.components.BottomNavigationBar
+import com.example.fyp1.components.FloatingBottomNavigationScaffold
 
 private enum class RewardTab(val label: String) {
     Browse("BROWSE REWARDS"),
@@ -74,12 +74,13 @@ fun RewardsScreen(navController: NavController, viewModel: MainViewModel) {
 
     LaunchedEffect(Unit) { viewModel.fetchUserData() }
 
-    Scaffold(bottomBar = { BottomNavigationBar(navController) }) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .background(Color(0xFFF5F7F5))
+                .padding(padding)
+                .padding(bottom = 110.dp)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {

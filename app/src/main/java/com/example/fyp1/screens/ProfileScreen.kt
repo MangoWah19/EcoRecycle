@@ -123,7 +123,7 @@ import com.example.fyp1.components.*
 fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    Scaffold(bottomBar = { BottomNavigationBar(navController) }) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         Column(Modifier.padding(padding).fillMaxSize()) {
             Box(Modifier.fillMaxWidth().background(Color(0xFF1DB954)).padding(40.dp), Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {

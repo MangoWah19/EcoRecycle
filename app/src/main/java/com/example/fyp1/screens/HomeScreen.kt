@@ -52,18 +52,19 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fyp1.MainViewModel
 import com.example.fyp1.RecyclingLog
-import com.example.fyp1.components.BottomNavigationBar
+import com.example.fyp1.components.FloatingBottomNavigationScaffold
 
 @Composable
 fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
     LaunchedEffect(Unit) { viewModel.fetchUserData() }
 
-    Scaffold(bottomBar = { BottomNavigationBar(navController) }) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .background(Color(0xFFF5F7F5))
+                .padding(padding)
+                .padding(bottom = 110.dp)
                 .padding(horizontal = 18.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {

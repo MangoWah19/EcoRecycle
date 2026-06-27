@@ -130,14 +130,13 @@ fun LeaderboardScreen(navController: NavController, viewModel: MainViewModel) {
         viewModel.fetchLeaderboard(timeframeKeys[selectedTab])
     }
 
-    Scaffold(
-        bottomBar = { BottomNavigationBar(navController) }
-    ) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
                 .background(Color(0xFFF5F7F5))
+                .padding(padding)
+                .padding(bottom = 110.dp)
         ) {
             Column(modifier = Modifier.fillMaxSize()) {
                 LeaderboardHero(
