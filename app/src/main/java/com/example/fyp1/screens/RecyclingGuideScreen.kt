@@ -77,15 +77,11 @@ fun RecyclingGuideScreen(navController: NavController) {
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = {
-                            navController.navigate("home") {
-                                popUpTo("home") { inclusive = true }
-                            }
-                        }
+onClick = { navController.popBackStack() }
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back to Home",
+                            contentDescription = "Back",
                             tint = GuideGreen
                         )
                     }
