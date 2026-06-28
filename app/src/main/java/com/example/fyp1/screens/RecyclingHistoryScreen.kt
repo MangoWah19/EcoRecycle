@@ -83,9 +83,7 @@ fun RecyclingHistoryScreen(navController: NavController, viewModel: MainViewMode
     val pendingCount = logs.count { it.isPendingStatus() }
     val approvedCount = logs.count { it.status.equals("Approved", ignoreCase = true) }
 
-    FloatingBottomNavigationScaffold(navController = navController,
-        topBar = { RecyclingHistoryTopBar(onBack = { navController.popBackStack() }) },
-    ) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -98,8 +96,9 @@ fun RecyclingHistoryScreen(navController: NavController, viewModel: MainViewMode
             ),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
+            item { RecyclingHistoryTopBar(onBack = { navController.popBackStack() }) }
+
             item {
-                Spacer(Modifier.height(6.dp))
                 RecyclingImpactCard(totalKg, pendingCount, approvedCount)
             }
 
@@ -132,26 +131,26 @@ fun RecyclingHistoryScreen(navController: NavController, viewModel: MainViewMode
 
 @Composable
 private fun RecyclingHistoryTopBar(onBack: () -> Unit) {
-    Surface(color = Color(0xFFF5F7F5), shadowElevation = 1.dp) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = Color(0xFF006B1B))
-            }
-            Text(
-                text = "Recycling History",
-                color = Color(0xFF006B1B),
-                fontSize = 18.sp,
-                fontWeight = FontWeight.ExtraBold,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.weight(1f)
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = Color(0xFF006B1B)
             )
-            Spacer(Modifier.size(42.dp))
         }
+        Text(
+            text = "Recycling History",
+            color = Color(0xFF006B1B),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(start = 4.dp)
+        )
     }
 }
 

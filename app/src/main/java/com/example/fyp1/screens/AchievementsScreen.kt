@@ -52,6 +52,7 @@ import androidx.compose.material.icons.filled.Hardware
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.LocalDrink
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Refresh
@@ -135,16 +136,14 @@ import com.example.fyp1.components.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
-    val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.fetchUserData() }
 
-    // Keep mission progress backed by the existing achievement data.
     val allAchievements = listOf(
         AchievementBadge(
             type        = "plastic_king",
             title       = "Plastic King",
             description = "Recycle 100kg of plastic",
-            icon        = "",
+            icon        = "?",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "plastic_king" },
             current     = viewModel.plasticKg.toDouble(),
             target      = 100.0,
@@ -154,7 +153,7 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
             type        = "paper_master",
             title       = "Paper Master",
             description = "Recycle 50kg of paper",
-            icon        = "",
+            icon        = "?",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "paper_master" },
             current     = viewModel.paperKg.toDouble(),
             target      = 50.0,
@@ -164,7 +163,144 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
             type        = "glass_guard",
             title       = "Glass Guard",
             description = "Recycle 75kg of glass",
-            icon        = "",
+            icon        = "?",
+            isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "glass_guard" },
+            current     = viewModel.glassKg.toDouble(),
+            target      = 75.0,
+            unit        = "kg"
+        ),
+        AchievementBadge(
+            type        = "eco_warrior",
+            title       = "Eco Warrior",
+            description = "Earn 1000 lifetime points",
+            icon        = "??",
+            isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "eco_warrior" },
+            current     = viewModel.lifetimePoints.toDouble(),
+            target      = 1000.0,
+            unit        = "pts"
+        ),
+        AchievementBadge(
+            type        = "week_streak",
+            title       = "Week Streak",
+            description = "Submit logs on 7 different days",
+            icon        = "??",
+            isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "week_streak" },
+            current     = viewModel.streakDays.toDouble(),
+            target      = 7.0,
+            unit        = "days"
+        ),
+        AchievementBadge(
+            type        = "first_redemption",
+            title       = "First Redemption",
+            description = "Redeem your first reward",
+            icon        = "??",
+            isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "first_redemption" },
+            current     = viewModel.totalRedemptions.toDouble().coerceAtMost(1.0),
+            target      = 1.0,
+            unit        = "redemption"
+        ),
+        AchievementBadge(
+            type        = "reward_collector",
+            title       = "Reward Collector",
+            description = "Redeem 10 rewards total",
+            icon        = "??",
+            isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "reward_collector" },
+            current     = viewModel.totalRedemptions.toDouble().coerceAtMost(10.0),
+            target      = 10.0,
+            unit        = "redemptions"
+        )
+    )
+
+    val unlockedCount = allAchievements.count { it.isUnlocked }
+    val totalCount = allAchievements.size
+    val progress = if (totalCount > 0) unlockedCount.toFloat() / totalCount else 0f
+
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xFFF5F7F5))
+                .padding(top = padding.calculateTopPadding())
+                .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(
+                top = 0.dp,
+                bottom = padding.calculateBottomPadding()
+            ),
+            verticalArrangement = Arrangement.spacedBy(18.dp)
+        ) {
+            item { AchievementRewardStyleHeader(onBack = { navController.popBackStack() }) }
+            item {
+                AchievementSummaryCard(
+                    unlockedCount = unlockedCount,
+                    totalCount = totalCount,
+                    progress = progress
+                )
+            }
+            items(allAchievements) { achievement ->
+                StitchAchievementCard(achievement)
+            }
+            item { Spacer(Modifier.height(10.dp)) }
+        }
+    }
+}
+
+@Composable
+private fun AchievementRewardStyleHeader(onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = Color(0xFF006B1B)
+            )
+        }
+        Text(
+            text = "Achievements",
+            color = Color(0xFF006B1B),
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+    }
+}
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MissionsScreen(navController: NavController, viewModel: MainViewModel) {
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { viewModel.fetchUserData() }
+
+    // Keep mission progress backed by the existing achievement data.
+    val allAchievements = listOf(
+        AchievementBadge(
+            type        = "plastic_king",
+            title       = "Plastic King",
+            description = "Recycle 100kg of plastic",
+            icon        = "?",
+            isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "plastic_king" },
+            current     = viewModel.plasticKg.toDouble(),
+            target      = 100.0,
+            unit        = "kg"
+        ),
+        AchievementBadge(
+            type        = "paper_master",
+            title       = "Paper Master",
+            description = "Recycle 50kg of paper",
+            icon        = "?",
+            isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "paper_master" },
+            current     = viewModel.paperKg.toDouble(),
+            target      = 50.0,
+            unit        = "kg"
+        ),
+        AchievementBadge(
+            type        = "glass_guard",
+            title       = "Glass Guard",
+            description = "Recycle 75kg of glass",
+            icon        = "?",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "glass_guard" },
             current     = viewModel.glassKg.toDouble(),
             target      = 75.0,
@@ -174,7 +310,7 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
             type        = "eco_warrior",
             title       = "Zero-Waste Campus Week",
             description = "Earn 1000 lifetime points by joining campus recycling activities.",
-            icon        = "",
+            icon        = "??",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "eco_warrior" },
             current     = viewModel.lifetimePoints.toDouble(),
             target      = 1000.0,
@@ -184,7 +320,7 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
             type        = "week_streak",
             title       = "Weekly Recycling Streak",
             description = "Submit recycling logs on 7 different days.",
-            icon        = "",
+            icon        = "??",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "week_streak" },
             current     = viewModel.streakDays.toDouble(),
             target      = 7.0,
@@ -194,7 +330,7 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
             type        = "first_redemption",
             title       = "First Reward Claim",
             description = "Redeem your first reward from the reward hub.",
-            icon        = "",
+            icon        = "??",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "first_redemption" },
             current     = viewModel.totalRedemptions.toDouble().coerceAtMost(1.0),
             target      = 1.0,
@@ -204,7 +340,7 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
             type        = "reward_collector",
             title       = "Reward Collector",
             description = "Redeem 10 rewards total.",
-            icon        = "",
+            icon        = "??",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "reward_collector" },
             current     = viewModel.totalRedemptions.toDouble().coerceAtMost(10.0),
             target      = 10.0,
@@ -694,7 +830,12 @@ private fun StitchAchievementCard(achievement: AchievementBadge) {
                         color = accent.copy(alpha = if (completed) 0.20f else 0.12f)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
-                            Text(text = achievement.icon, fontSize = 23.sp)
+                            Icon(
+                                imageVector = achievementIconVector(achievement.type),
+                                contentDescription = null,
+                                tint = accent,
+                                modifier = Modifier.size(26.dp)
+                            )
                         }
                     }
                     Spacer(Modifier.width(14.dp))
@@ -790,6 +931,17 @@ private fun achievementProgress(achievement: AchievementBadge): Float {
     }
 }
 
+
+private fun achievementIconVector(type: String): ImageVector = when (type) {
+    "plastic_king" -> Icons.Default.LocalDrink
+    "paper_master" -> Icons.Default.Description
+    "glass_guard" -> Icons.Default.WineBar
+    "eco_warrior" -> Icons.Default.Eco
+    "week_streak" -> Icons.Default.Schedule
+    "first_redemption" -> Icons.Default.CardGiftcard
+    "reward_collector" -> Icons.Default.EmojiEvents
+    else -> Icons.Default.Stars
+}
 private fun achievementAccentColor(type: String): Color = when (type) {
     "plastic_king" -> Color(0xFF60A5FA)
     "paper_master" -> Color(0xFFFF8A3D)
@@ -808,6 +960,11 @@ private fun formatAchievementNumber(value: Double): String {
         String.format("%.1f", value)
     }
 }
+
+
+
+
+
 
 
 

@@ -110,7 +110,7 @@ fun BottomNavigationBar(navController: NavController) {
             icon = Icons.Default.Recycling,
             activeRoutes = setOf("submit_recycling", "qr_scanner")
         ),
-        BottomNavItem("MISSIONS", "achievements", Icons.Default.Stars),
+        BottomNavItem("MISSIONS", "missions", Icons.Default.Stars),
         BottomNavItem(
             label = "LEARN",
             route = "eco_learning",
@@ -195,6 +195,7 @@ private fun BottomNavPillItem(
         )
     }
 }
+
 
 
 

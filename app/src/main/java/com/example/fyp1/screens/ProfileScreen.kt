@@ -147,17 +147,18 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
 
 @Composable
 private fun ProfileTopBar() {
-    Box(
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .height(44.dp),
-        contentAlignment = Alignment.Center
+            .padding(top = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             text = "Profile",
             color = Color(0xFF006B1B),
-            fontSize = 15.sp,
-            fontWeight = FontWeight.ExtraBold
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(start = 4.dp)
         )
     }
 }
@@ -174,7 +175,7 @@ private fun ProfileIdentity(userName: String, onEdit: () -> Unit) {
                 shape = CircleShape,
                 color = Color(0xFFEAF0EC),
                 border = BorderStroke(4.dp, Color.White),
-                shadowElevation = 7.dp
+                shadowElevation = 4.dp
             ) {
                 Icon(
                     imageVector = Icons.Default.Person,
@@ -217,34 +218,34 @@ private fun ProfileIdentity(userName: String, onEdit: () -> Unit) {
 private fun ProfileStatsCard(recycledKg: Double, savedCount: Int, points: Int) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
-        border = BorderStroke(1.dp, Color(0xFFE1E6E2))
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        border = BorderStroke(1.dp, Color(0xFFE6E9E7))
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 17.dp),
+                .padding(vertical = 18.dp),
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ProfileStat(value = "Live", label = "RECYCLED", helper = formatKg(recycledKg))
+            ProfileStat(value = "--kg", label = "RECYCLED")
             StatDivider()
-            ProfileStat(value = "Live", label = "SAVED", helper = savedCount.toString())
+            ProfileStat(value = "--", label = "SAVED")
             StatDivider()
-            ProfileStat(value = "Live", label = "POINTS", helper = points.toString())
+            ProfileStat(value = "--", label = "POINTS")
         }
     }
 }
 
 @Composable
-private fun ProfileStat(value: String, label: String, helper: String) {
+private fun ProfileStat(value: String, label: String) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
             text = value,
             color = Color(0xFF00751D),
-            fontSize = 18.sp,
+            fontSize = 20.sp,
             fontWeight = FontWeight.Black
         )
         Text(
@@ -253,12 +254,6 @@ private fun ProfileStat(value: String, label: String, helper: String) {
             fontSize = 9.sp,
             fontWeight = FontWeight.Black,
             letterSpacing = 1.sp
-        )
-        Text(
-            text = helper,
-            color = Color(0xFF595C5B),
-            fontSize = 9.sp,
-            fontWeight = FontWeight.Bold
         )
     }
 }
@@ -285,11 +280,11 @@ private fun ProfileActionButton(
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(72.dp)
+            .height(68.dp)
             .clickable(onClick = onClick),
-        shape = CircleShape,
+        shape = RoundedCornerShape(28.dp),
         color = backgroundColor,
-        shadowElevation = 7.dp
+        shadowElevation = 4.dp
     ) {
         Row(
             modifier = Modifier.padding(horizontal = 22.dp),
@@ -334,7 +329,7 @@ private fun SignOutOutlineButton(onClick: () -> Unit) {
             .fillMaxWidth()
             .height(58.dp)
             .clickable(onClick = onClick),
-        shape = CircleShape,
+        shape = RoundedCornerShape(28.dp),
         color = Color.Transparent,
         border = BorderStroke(1.dp, Color(0x40B02500))
     ) {
@@ -366,5 +361,10 @@ private fun formatKg(value: Double): String {
         "${String.format("%.1f", value)}kg"
     }
 }
+
+
+
+
+
 
 

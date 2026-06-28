@@ -110,42 +110,17 @@ private enum class GuideVisual {
 fun GuideDetailScreen(navController: NavController, material: String) {
     val detail = remember(material) { materialDetails(material) }
 
-    Scaffold(
-        containerColor = DetailBackground,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "${detail.name} Guide",
-                        color = DetailGreen,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = DetailGreen
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = DetailBackground,
-                    scrolledContainerColor = DetailBackground
-                )
-            )
-        }
-    ) { padding ->
+    Scaffold(containerColor = DetailBackground) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(top = padding.calculateTopPadding())
                 .background(DetailBackground),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 32.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            item { DetailRewardStyleHeader(title = "${detail.name} Guide", onBack = { navController.popBackStack() }) }
+
             item {
                 EnvironmentalImpactCard(detail = detail)
             }
@@ -172,6 +147,30 @@ fun GuideDetailScreen(navController: NavController, material: String) {
     }
 }
 
+@Composable
+private fun DetailRewardStyleHeader(title: String, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = DetailGreen
+            )
+        }
+        Text(
+            text = title,
+            color = DetailGreen,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+    }
+}
 @Composable
 private fun EnvironmentalImpactCard(detail: MaterialDetail) {
     Card(
@@ -559,3 +558,5 @@ private fun materialDetails(material: String): MaterialDetail {
         )
     }
 }
+
+

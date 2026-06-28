@@ -159,6 +159,7 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         }
         composable("edit_profile") { EditProfileScreen(navController, viewModel) }
         composable("leaderboard") { LeaderboardScreen(navController, viewModel) }
+        composable("missions") { MissionsScreen(navController, viewModel) }
         composable("achievements") { AchievementsScreen(navController, viewModel) }
         composable("forgot_password") { ForgotPasswordScreen(navController) }
         composable("reset_password") { ResetPasswordScreen(navController) }
@@ -172,3 +173,4 @@ private fun isResetIntent(intent: Intent?): Boolean {
     val type = data.getQueryParameter("type")
     return type == "recovery" && !accessToken.isNullOrBlank()
 }
+

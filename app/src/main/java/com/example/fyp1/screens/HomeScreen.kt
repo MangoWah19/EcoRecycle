@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.EmojiEvents
 import androidx.compose.material.icons.filled.Hardware
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.LocalDrink
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Refresh
@@ -74,8 +75,7 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
         ) {
             item {
                 HomeTopBar(
-                    isRefreshing = viewModel.isRefreshing,
-                    onRefresh = { viewModel.fetchUserData() },
+                    onMenuClick = { },
                     onProfileClick = { navController.navigate("profile") }
                 )
             }
@@ -83,7 +83,9 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
             item {
                 ImpactPanel(
                     userName = viewModel.userName,
-                    userPoints = viewModel.userPoints
+                    userPoints = viewModel.userPoints,
+                    isRefreshing = viewModel.isRefreshing,
+                    onRefresh = { viewModel.fetchUserData() }
                 )
             }
 
@@ -95,12 +97,15 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     HomeActionTile(
-                        label = "Scan",
+                        label = "Scan Now",
                         icon = Icons.Default.Recycling,
                         backgroundColor = Color(0xFFEFF8F0),
                         iconColor = Color(0xFF006B1B),
                         modifier = Modifier.weight(1f)
-                    ) { navController.navigate("submit_recycling") }
+                    ) {
+                        navController.navigate("submit_recycling")
+                        navController.navigate("qr_scanner")
+                    }
                     HomeActionTile(
                         label = "Rewards",
                         icon = Icons.Default.CardGiftcard,
@@ -154,8 +159,7 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
 
 @Composable
 private fun HomeTopBar(
-    isRefreshing: Boolean,
-    onRefresh: () -> Unit,
+    onMenuClick: () -> Unit,
     onProfileClick: () -> Unit
 ) {
     Row(
@@ -166,21 +170,13 @@ private fun HomeTopBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = onRefresh) {
-                if (isRefreshing) {
-                    CircularProgressIndicator(
-                        modifier = Modifier.size(20.dp),
-                        color = Color(0xFF006B1B),
-                        strokeWidth = 2.dp
-                    )
-                } else {
-                    Icon(Icons.Default.Refresh, contentDescription = "Refresh", tint = Color(0xFF006B1B))
-                }
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color(0xFF006B1B))
             }
             Text(
                 text = "Eco-Recycle",
                 color = Color(0xFF006B1B),
-                fontSize = 18.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.ExtraBold
             )
         }
@@ -202,9 +198,13 @@ private fun HomeTopBar(
         }
     }
 }
-
 @Composable
-private fun ImpactPanel(userName: String, userPoints: Int) {
+private fun ImpactPanel(
+    userName: String,
+    userPoints: Int,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(36.dp),
@@ -213,18 +213,49 @@ private fun ImpactPanel(userName: String, userPoints: Int) {
         border = BorderStroke(1.dp, Color.White)
     ) {
         Column(modifier = Modifier.padding(horizontal = 28.dp, vertical = 26.dp)) {
-            Text(
-                text = userName.ifBlank { "Eco Recycler" },
-                color = Color(0xFF2C2F2E),
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Bold
-            )
-            Text(
-                text = "Personal sustainability report",
-                color = Color(0xFF595C5B),
-                fontSize = 12.sp,
-                fontWeight = FontWeight.Medium
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.Top
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = userName.ifBlank { "Eco Recycler" },
+                        color = Color(0xFF2C2F2E),
+                        fontSize = 28.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "Personal sustainability report",
+                        color = Color(0xFF595C5B),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Surface(
+                    modifier = Modifier.size(42.dp),
+                    shape = CircleShape,
+                    color = Color(0xFFEFF8F0),
+                    border = BorderStroke(1.dp, Color(0xFFE0E9E2))
+                ) {
+                    IconButton(onClick = onRefresh) {
+                        if (isRefreshing) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(18.dp),
+                                color = Color(0xFF006B1B),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Icon(
+                                Icons.Default.Refresh,
+                                contentDescription = "Refresh",
+                                tint = Color(0xFF006B1B),
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
+            }
             Spacer(Modifier.height(28.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),

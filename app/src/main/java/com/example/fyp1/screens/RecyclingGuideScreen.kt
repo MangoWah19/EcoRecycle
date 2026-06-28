@@ -63,44 +63,17 @@ fun RecyclingGuideScreen(navController: NavController) {
         )
     }
 
-    Scaffold(
-        containerColor = GuideBackground,
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = "Recycling Guide",
-                        color = GuideGreen,
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                },
-                navigationIcon = {
-                    IconButton(
-onClick = { navController.popBackStack() }
-                    ) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = "Back",
-                            tint = GuideGreen
-                        )
-                    }
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = GuideBackground,
-                    scrolledContainerColor = GuideBackground
-                )
-            )
-        }
-    ) { padding ->
+    Scaffold(containerColor = GuideBackground) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding)
+                .padding(top = padding.calculateTopPadding())
                 .background(GuideBackground),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 20.dp, bottom = 28.dp),
+            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 0.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
+            item { GuideRewardStyleHeader(onBack = { navController.popBackStack() }) }
+
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
                     Text(
@@ -134,6 +107,30 @@ onClick = { navController.popBackStack() }
     }
 }
 
+@Composable
+private fun GuideRewardStyleHeader(onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "Back",
+                tint = GuideGreen
+            )
+        }
+        Text(
+            text = "Recycling Guide",
+            color = GuideGreen,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(start = 4.dp)
+        )
+    }
+}
 @Composable
 private fun GuideMaterialGrid(
     materials: List<MaterialGuide>,
@@ -258,3 +255,5 @@ private fun RecyclingHackCard() {
         }
     }
 }
+
+
