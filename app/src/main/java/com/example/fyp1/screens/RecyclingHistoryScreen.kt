@@ -6,6 +6,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -89,9 +90,12 @@ fun RecyclingHistoryScreen(navController: NavController, viewModel: MainViewMode
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color(0xFFF5F7F5))
-                .padding(padding)
-                .padding(bottom = 110.dp)
+                .padding(top = padding.calculateTopPadding())
                 .padding(horizontal = 16.dp),
+            contentPadding = PaddingValues(
+                top = 0.dp,
+                bottom = padding.calculateBottomPadding()
+            ),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
             item {
@@ -436,3 +440,5 @@ private fun formatKg(value: Double): String {
 private fun formatLogDate(value: String?): String {
     return value?.take(10)?.substring(5)?.replace("-", " ")?.uppercase() ?: "RECENT"
 }
+
+

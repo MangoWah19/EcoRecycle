@@ -49,7 +49,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fyp1.R
-import com.example.fyp1.components.FloatingBottomNavigationDefaults
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
 
 private val LearnBackground = Color(0xFFF5F7F5)
@@ -109,7 +108,7 @@ fun EcoLearningScreen(navController: NavController) {
                 .padding(horizontal = 18.dp),
             contentPadding = PaddingValues(
                 top = 0.dp,
-                bottom = padding.calculateBottomPadding() + FloatingBottomNavigationDefaults.contentBottomPadding()
+                bottom = padding.calculateBottomPadding()
             ),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
@@ -403,3 +402,4 @@ private fun LearningButton(text: String, primary: Boolean, onClick: () -> Unit) 
         }
     }
 }
+

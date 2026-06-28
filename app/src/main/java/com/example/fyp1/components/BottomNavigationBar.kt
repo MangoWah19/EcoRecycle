@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.calculateEndPadding
+import androidx.compose.foundation.layout.calculateStartPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -76,7 +78,14 @@ fun FloatingBottomNavigationScaffold(
             topBar = topBar,
             bottomBar = {}
         ) { innerPadding ->
-            content(innerPadding)
+            val contentPadding = PaddingValues(
+                start = innerPadding.calculateStartPadding(LayoutDirection.Ltr),
+                top = innerPadding.calculateTopPadding(),
+                end = innerPadding.calculateEndPadding(LayoutDirection.Ltr),
+                bottom = innerPadding.calculateBottomPadding() +
+                    FloatingBottomNavigationDefaults.contentBottomPadding()
+            )
+            content(contentPadding)
         }
 
         Box(
@@ -186,3 +195,4 @@ private fun BottomNavPillItem(
         )
     }
 }
+

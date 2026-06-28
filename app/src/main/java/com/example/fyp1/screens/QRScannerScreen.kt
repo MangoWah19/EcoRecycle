@@ -98,8 +98,6 @@ fun QRScannerScreen(navController: NavController) {
             modifier = Modifier
                 .fillMaxSize()
                 .background(Color.Black)
-                .padding(padding)
-                .padding(bottom = 110.dp)
         ) {
             if (hasCameraPermission) {
                 QRScannerCameraPreview(navController = navController)
@@ -369,3 +367,4 @@ private fun PermissionPrompt(onRequestPermission: () -> Unit) {
         }
     }
 }
+
