@@ -108,7 +108,7 @@ fun EcoLearningScreen(navController: NavController) {
                 .padding(top = padding.calculateTopPadding())
                 .padding(horizontal = 18.dp),
             contentPadding = PaddingValues(
-                top = 14.dp,
+                top = 0.dp,
                 bottom = padding.calculateBottomPadding() + FloatingBottomNavigationDefaults.contentBottomPadding()
             ),
             verticalArrangement = Arrangement.spacedBy(18.dp)
@@ -132,7 +132,9 @@ fun EcoLearningScreen(navController: NavController) {
 @Composable
 private fun EcoLearningTopBar(onMenuClick: () -> Unit, onProfileClick: () -> Unit) {
     Row(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
@@ -143,46 +145,49 @@ private fun EcoLearningTopBar(onMenuClick: () -> Unit, onProfileClick: () -> Uni
             Text(
                 text = "Eco-Recycle",
                 color = LearnPrimary,
-                fontSize = 14.sp,
+                fontSize = 17.sp,
                 fontWeight = FontWeight.ExtraBold
             )
         }
         Surface(
             modifier = Modifier
-                .size(38.dp)
+                .size(42.dp)
                 .clickable(onClick = onProfileClick),
             shape = CircleShape,
-            color = Color(0xFFE0E3E1),
-            border = BorderStroke(2.dp, Color.White)
+            color = Color(0xFFE6E9E7),
+            border = BorderStroke(2.dp, Color(0x1A006B1B))
         ) {
             Icon(
                 imageVector = Icons.Default.Person,
                 contentDescription = "Profile",
                 tint = LearnPrimary,
-                modifier = Modifier.padding(8.dp)
+                modifier = Modifier.padding(9.dp)
             )
         }
     }
 }
-
 @Composable
 private fun EcoLearningHeader() {
-    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(
+        modifier = Modifier.padding(top = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
         Text(
             text = "Eco-Learning",
             color = LearnPrimary,
-            fontSize = 30.sp,
+            fontSize = 28.sp,
+            lineHeight = 34.sp,
             fontWeight = FontWeight.ExtraBold
         )
         Text(
             text = "Master the art of sustainable living.",
             color = LearnMuted,
-            fontSize = 13.sp,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
             fontWeight = FontWeight.Medium
         )
     }
 }
-
 @Composable
 private fun SearchAndFilters() {
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
