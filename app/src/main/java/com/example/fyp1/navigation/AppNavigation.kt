@@ -151,6 +151,7 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         composable("submit_recycling") { SubmitRecyclingScreen(navController, viewModel) }
         composable("recycling_history") { RecyclingHistoryScreen(navController, viewModel) }
         composable("qr_scanner") { QRScannerScreen(navController) }
+        composable("eco_learning") { EcoLearningScreen(navController) }
         composable("recycling_guide") { RecyclingGuideScreen(navController) }
         composable("guide_detail/{material}") { backStack ->
             val mat = backStack.arguments?.getString("material") ?: ""

@@ -9,9 +9,12 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -41,6 +44,15 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
+object FloatingBottomNavigationDefaults {
+    val BarHeight = 76.dp
+    val BottomMargin = 20.dp
+
+    @Composable
+    fun contentBottomPadding(extraSpacing: androidx.compose.ui.unit.Dp = 18.dp): androidx.compose.ui.unit.Dp {
+        return BarHeight + BottomMargin + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + extraSpacing
+    }
+}
 private data class BottomNavItem(
     val label: String,
     val route: String,
@@ -72,7 +84,7 @@ fun FloatingBottomNavigationScaffold(
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
                 .padding(horizontal = 14.dp)
-                .padding(bottom = 20.dp)
+                .padding(bottom = FloatingBottomNavigationDefaults.BottomMargin)
         ) {
             BottomNavigationBar(navController = navController)
         }
@@ -92,9 +104,9 @@ fun BottomNavigationBar(navController: NavController) {
         BottomNavItem("MISSIONS", "achievements", Icons.Default.Stars),
         BottomNavItem(
             label = "LEARN",
-            route = "recycling_guide",
+            route = "eco_learning",
             icon = Icons.Default.Description,
-            activeRoutes = setOf("recycling_guide", "guide_detail/{material}")
+            activeRoutes = setOf("eco_learning")
         ),
         BottomNavItem("PROFILE", "profile", Icons.Default.Person)
     )
@@ -105,7 +117,7 @@ fun BottomNavigationBar(navController: NavController) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .height(76.dp),
+            .height(FloatingBottomNavigationDefaults.BarHeight),
         shape = CircleShape,
         color = Color.White,
         shadowElevation = 12.dp,
