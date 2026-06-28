@@ -3,6 +3,18 @@ package com.example.fyp1.screens
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Tune
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextOverflow
+import com.example.fyp1.R
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -123,15 +135,16 @@ import com.example.fyp1.components.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
+    val context = LocalContext.current
     LaunchedEffect(Unit) { viewModel.fetchUserData() }
 
-    // Build achievement list with live progress values from ViewModel
+    // Keep mission progress backed by the existing achievement data.
     val allAchievements = listOf(
         AchievementBadge(
             type        = "plastic_king",
-            title       = "Plastic King \uD83D\uDC51",
+            title       = "Plastic King",
             description = "Recycle 100kg of plastic",
-            icon        = "\uD83D\uDC51",
+            icon        = "",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "plastic_king" },
             current     = viewModel.plasticKg.toDouble(),
             target      = 100.0,
@@ -139,9 +152,9 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
         ),
         AchievementBadge(
             type        = "paper_master",
-            title       = "Paper Master \uD83D\uDCDA",
+            title       = "Paper Master",
             description = "Recycle 50kg of paper",
-            icon        = "\uD83D\uDCDA",
+            icon        = "",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "paper_master" },
             current     = viewModel.paperKg.toDouble(),
             target      = 50.0,
@@ -149,9 +162,9 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
         ),
         AchievementBadge(
             type        = "glass_guard",
-            title       = "Glass Guard \uD83D\uDD37",
+            title       = "Glass Guard",
             description = "Recycle 75kg of glass",
-            icon        = "\uD83D\uDD37",
+            icon        = "",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "glass_guard" },
             current     = viewModel.glassKg.toDouble(),
             target      = 75.0,
@@ -159,9 +172,9 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
         ),
         AchievementBadge(
             type        = "eco_warrior",
-            title       = "Eco Warrior \uD83C\uDF31",
-            description = "Earn 1000 lifetime points",
-            icon        = "\uD83C\uDF31",
+            title       = "Zero-Waste Campus Week",
+            description = "Earn 1000 lifetime points by joining campus recycling activities.",
+            icon        = "",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "eco_warrior" },
             current     = viewModel.lifetimePoints.toDouble(),
             target      = 1000.0,
@@ -169,9 +182,9 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
         ),
         AchievementBadge(
             type        = "week_streak",
-            title       = "Week Streak \uD83D\uDD25",
-            description = "Submit logs on 7 different days",
-            icon        = "\uD83D\uDD25",
+            title       = "Weekly Recycling Streak",
+            description = "Submit recycling logs on 7 different days.",
+            icon        = "",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "week_streak" },
             current     = viewModel.streakDays.toDouble(),
             target      = 7.0,
@@ -179,9 +192,9 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
         ),
         AchievementBadge(
             type        = "first_redemption",
-            title       = "First Redemption \uD83C\uDF81",
-            description = "Redeem your first reward",
-            icon        = "\uD83C\uDF81",
+            title       = "First Reward Claim",
+            description = "Redeem your first reward from the reward hub.",
+            icon        = "",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "first_redemption" },
             current     = viewModel.totalRedemptions.toDouble().coerceAtMost(1.0),
             target      = 1.0,
@@ -189,87 +202,374 @@ fun AchievementsScreen(navController: NavController, viewModel: MainViewModel) {
         ),
         AchievementBadge(
             type        = "reward_collector",
-            title       = "Reward Collector \uD83C\uDFC6",
-            description = "Redeem 10 rewards total",
-            icon        = "\uD83C\uDFC6",
+            title       = "Reward Collector",
+            description = "Redeem 10 rewards total.",
+            icon        = "",
             isUnlocked  = viewModel.userAchievements.any { it.achievement_type == "reward_collector" },
             current     = viewModel.totalRedemptions.toDouble().coerceAtMost(10.0),
             target      = 10.0,
             unit        = "redemptions"
         )
     )
+    val missionAchievements = allAchievements.sortedBy { if (it.type == "eco_warrior") 0 else 1 }
 
-    val unlockedCount = allAchievements.count { it.isUnlocked }
-    val totalCount = allAchievements.size
-    val progress = if (totalCount > 0) unlockedCount.toFloat() / totalCount else 0f
-
-    FloatingBottomNavigationScaffold(navController = navController,
-        topBar = {
-            Surface(color = Color(0xFFF5F7F5)) {
-                Column {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(horizontal = 14.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { navController.popBackStack() }) {
-                            Icon(
-                                Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
-                                tint = Color(0xFF006B1B)
-                            )
-                        }
-                        Text(
-                            text = "Achievements",
-                            color = Color(0xFF006B1B),
-                            fontWeight = FontWeight.ExtraBold,
-                            fontSize = 18.sp,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.size(48.dp))
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(1.dp)
-                            .background(Color(0xFFE6E9E7))
-                    )
-                }
-            }
-        },
-    ) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .background(Color(0xFFF5F7F5))
+                .background(MissionBackground)
                 .padding(top = padding.calculateTopPadding())
-                .padding(horizontal = 16.dp),
+                .padding(horizontal = 18.dp),
             contentPadding = PaddingValues(
                 top = 0.dp,
                 bottom = padding.calculateBottomPadding()
             ),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            item {
-                Spacer(Modifier.height(8.dp))
-                AchievementSummaryCard(
-                    unlockedCount = unlockedCount,
-                    totalCount = totalCount,
-                    progress = progress
+            item { MissionTopBar(onMenuClick = { }, onProfileClick = { navController.navigate("profile") }) }
+            item { MissionHeader() }
+            item { MissionSearchAndFilters() }
+            items(missionAchievements) { achievement ->
+                MissionAchievementCard(
+                    achievement = achievement,
+                    featured = achievement.type == "eco_warrior",
+                    onClick = {
+                        Toast.makeText(context, "Mission details coming soon", Toast.LENGTH_SHORT).show()
+                    }
                 )
             }
-
-            items(allAchievements) { achievement ->
-                StitchAchievementCard(achievement)
-            }
-
-            item { Spacer(Modifier.height(8.dp)) }
         }
     }
 }
 
+private val MissionBackground = Color(0xFFF5F7F5)
+private val MissionPrimary = Color(0xFF006B1B)
+private val MissionAccent = Color(0xFF008A95)
+private val MissionText = Color(0xFF2C2F2E)
+private val MissionMuted = Color(0xFF686E6B)
+private val MissionSoftSurface = Color(0xFFE6EDE9)
+
+@Composable
+private fun MissionTopBar(onMenuClick: () -> Unit, onProfileClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onMenuClick) {
+                Icon(Icons.Default.Menu, contentDescription = "Menu", tint = MissionPrimary)
+            }
+            Text(
+                text = "Eco-Recycle",
+                color = MissionPrimary,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
+        Surface(
+            modifier = Modifier
+                .size(42.dp)
+                .clickable(onClick = onProfileClick),
+            shape = CircleShape,
+            color = Color(0xFFE6E9E7),
+            border = BorderStroke(2.dp, Color(0x1A006B1B))
+        ) {
+            Icon(
+                imageVector = Icons.Default.Person,
+                contentDescription = "Profile",
+                tint = MissionPrimary,
+                modifier = Modifier.padding(9.dp)
+            )
+        }
+    }
+}
+
+@Composable
+private fun MissionHeader() {
+    Column(
+        modifier = Modifier.padding(top = 2.dp),
+        verticalArrangement = Arrangement.spacedBy(5.dp)
+    ) {
+        Text(
+            text = "Active Missions",
+            color = MissionPrimary,
+            fontSize = 28.sp,
+            lineHeight = 34.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Text(
+            text = "Join the green revolution on campus.",
+            color = MissionMuted,
+            fontSize = 12.sp,
+            lineHeight = 18.sp,
+            fontWeight = FontWeight.Medium
+        )
+    }
+}
+
+@Composable
+private fun MissionSearchAndFilters() {
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(52.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = MissionSoftSurface
+            ) {
+                Row(
+                    modifier = Modifier.padding(horizontal = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Default.Search, contentDescription = null, tint = Color(0xFF747776), modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        text = "Search sustainability tasks...",
+                        color = Color(0xFF747776),
+                        fontSize = 12.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Surface(
+                modifier = Modifier.size(52.dp),
+                shape = RoundedCornerShape(8.dp),
+                color = MissionSoftSurface
+            ) {
+                Icon(Icons.Default.Tune, contentDescription = "Filter", tint = MissionMuted, modifier = Modifier.padding(14.dp))
+            }
+        }
+
+        Row(
+            modifier = Modifier.horizontalScroll(rememberScrollState()),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            MissionFilterChip("All", selected = true)
+            MissionFilterChip("New")
+            MissionFilterChip("Ongoing")
+            MissionFilterChip("Completed")
+        }
+    }
+}
+
+@Composable
+private fun MissionFilterChip(label: String, selected: Boolean = false) {
+    Surface(
+        shape = CircleShape,
+        color = if (selected) MissionPrimary else MissionSoftSurface
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 18.dp, vertical = 10.dp),
+            color = if (selected) Color.White else MissionMuted,
+            fontSize = 12.sp,
+            fontWeight = FontWeight.Bold
+        )
+    }
+}
+
+@Composable
+private fun MissionAchievementCard(
+    achievement: AchievementBadge,
+    featured: Boolean,
+    onClick: () -> Unit
+) {
+    val progress = achievementProgress(achievement)
+    val completed = achievement.isUnlocked || progress >= 1f
+    val started = achievement.current > 0.0 && !completed
+    val points = missionPoints(achievement.type)
+    val category = missionCategory(achievement.type)
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        border = when {
+            started -> BorderStroke(2.dp, MissionAccent)
+            featured -> null
+            else -> BorderStroke(1.dp, Color(0xFFE5EAE6))
+        }
+    ) {
+        Column {
+            if (featured) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(160.dp)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.mission_zero_waste),
+                        contentDescription = achievement.title,
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(Color.Black.copy(alpha = 0.04f), Color.Black.copy(alpha = 0.18f))
+                                )
+                            )
+                    )
+                    Surface(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .padding(14.dp),
+                        shape = CircleShape,
+                        color = Color(0xFF11EAFE)
+                    ) {
+                        Text(
+                            text = "FEATURED",
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                            color = Color(0xFF003D43),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+            }
+
+            Column(
+                modifier = Modifier.padding(22.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MissionCategoryLabel(category)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Bolt, contentDescription = null, tint = MissionPrimary, modifier = Modifier.size(15.dp))
+                        Spacer(Modifier.width(4.dp))
+                        Text("$points pts", color = MissionPrimary, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Text(
+                    text = achievement.title,
+                    color = MissionText,
+                    fontSize = if (featured) 22.sp else 17.sp,
+                    lineHeight = if (featured) 27.sp else 22.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    text = missionDescription(achievement),
+                    color = MissionMuted,
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
+                )
+                if (started) {
+                    LinearProgressIndicator(
+                        progress = { progress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(7.dp),
+                        color = MissionAccent,
+                        trackColor = MissionSoftSurface
+                    )
+                }
+                MissionButton(
+                    text = when {
+                        completed -> "Completed"
+                        started -> "Resume Mission"
+                        else -> "View Details"
+                    },
+                    primary = featured || started,
+                    enabled = !completed,
+                    onClick = onClick
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun MissionCategoryLabel(category: String) {
+    Surface(shape = CircleShape, color = Color(0xFFE2F6E6)) {
+        Text(
+            text = category,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            color = MissionPrimary,
+            fontSize = 9.sp,
+            fontWeight = FontWeight.Black,
+            letterSpacing = 0.6.sp
+        )
+    }
+}
+
+@Composable
+private fun MissionButton(
+    text: String,
+    primary: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(44.dp)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, onClick = onClick),
+        shape = CircleShape,
+        color = when {
+            !enabled -> MissionSoftSurface
+            primary -> MissionPrimary
+            else -> MissionSoftSurface
+        }
+    ) {
+        Row(
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = text,
+                color = if (primary && enabled) Color.White else MissionPrimary,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.ExtraBold
+            )
+        }
+    }
+}
+
+private fun missionPoints(type: String): Int = when (type) {
+    "eco_warrior" -> 200
+    "plastic_king" -> 120
+    "paper_master" -> 90
+    "glass_guard" -> 100
+    "week_streak" -> 80
+    "first_redemption" -> 50
+    "reward_collector" -> 150
+    else -> 75
+}
+
+private fun missionCategory(type: String): String = when (type) {
+    "eco_warrior" -> "WASTE MANAGEMENT"
+    "plastic_king" -> "RECYCLING"
+    "paper_master" -> "PAPER"
+    "glass_guard" -> "GLASS"
+    "week_streak" -> "MOBILITY"
+    "first_redemption" -> "REWARDS"
+    "reward_collector" -> "COMMUNITY"
+    else -> "MISSION"
+}
+
+private fun missionDescription(achievement: AchievementBadge): String = when (achievement.type) {
+    "eco_warrior" -> "Coordinate with your dorm floor to eliminate single-use plastics for 7 days. Track your collective progress."
+    "plastic_king" -> "Collect and submit clean plastic bottles or containers to move this recycling mission forward."
+    "paper_master" -> "Sort clean paper, flatten cardboard, and keep materials dry before depositing."
+    "glass_guard" -> "Rinse glass bottles and jars before sending them to the campus recycling stream."
+    "week_streak" -> "Keep your recycling habit alive by submitting approved activity across different days."
+    "first_redemption" -> "Turn your earned points into your first campus reward."
+    "reward_collector" -> "Keep redeeming rewards and build your sustainable campus streak."
+    else -> achievement.description
+}
 @Composable
 private fun AchievementSummaryCard(
     unlockedCount: Int,
@@ -508,4 +808,6 @@ private fun formatAchievementNumber(value: Double): String {
         String.format("%.1f", value)
     }
 }
+
+
 

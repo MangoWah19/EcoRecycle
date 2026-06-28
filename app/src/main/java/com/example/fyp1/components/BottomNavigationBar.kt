@@ -23,7 +23,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.automirrored.filled.MenuBook
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recycling
@@ -114,7 +114,7 @@ fun BottomNavigationBar(navController: NavController) {
         BottomNavItem(
             label = "LEARN",
             route = "eco_learning",
-            icon = Icons.Default.Description,
+            icon = Icons.AutoMirrored.Filled.MenuBook,
             activeRoutes = setOf("eco_learning")
         ),
         BottomNavItem("PROFILE", "profile", Icons.Default.Person)
@@ -195,4 +195,6 @@ private fun BottomNavPillItem(
         )
     }
 }
+
+
 
