@@ -25,11 +25,13 @@ import androidx.compose.material.icons.filled.Bookmark
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
+import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -97,25 +99,25 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
                     ProfileActionButton(
                         title = "Recycling Guide",
                         icon = Icons.Default.Recycling,
-                        backgroundColor = Color(0xFF00751D),
-                        contentColor = Color.White,
-                        iconBackgroundColor = Color.White.copy(alpha = 0.20f),
+                        backgroundColor = Color(0xFFEFF8F0),
+                        contentColor = Color(0xFF006B1B),
+                        iconBackgroundColor = Color(0x1A006B1B),
                         onClick = { navController.navigate("recycling_guide") }
                     )
                     ProfileActionButton(
                         title = "My Recycling",
                         icon = Icons.Default.History,
-                        backgroundColor = Color(0xFF86FAAC),
-                        contentColor = Color(0xFF004A25),
-                        iconBackgroundColor = Color(0x1A004A25),
+                        backgroundColor = Color(0xFFF0FFF4),
+                        contentColor = Color(0xFF006A38),
+                        iconBackgroundColor = Color(0x1A006A38),
                         onClick = { navController.navigate("recycling_history") }
                     )
                     ProfileActionButton(
                         title = "Saved Content",
                         icon = Icons.Default.Bookmark,
-                        backgroundColor = Color(0xFF11EAFE),
-                        contentColor = Color(0xFF003D43),
-                        iconBackgroundColor = Color(0x1A003D43),
+                        backgroundColor = Color(0xFFF0FBFF),
+                        contentColor = Color(0xFF00656F),
+                        iconBackgroundColor = Color(0x1A00656F),
                         onClick = {
                             Toast.makeText(context, "Saved Content coming soon", Toast.LENGTH_SHORT).show()
                         }
@@ -153,6 +155,13 @@ private fun ProfileTopBar() {
             .padding(top = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
+        IconButton(onClick = { }, modifier = Modifier.size(42.dp)) {
+            Icon(
+                imageVector = Icons.Default.Menu,
+                contentDescription = "Menu",
+                tint = Color(0xFF006B1B)
+            )
+        }
         Text(
             text = "Profile",
             color = Color(0xFF006B1B),
@@ -361,6 +370,10 @@ private fun formatKg(value: Double): String {
         "${String.format("%.1f", value)}kg"
     }
 }
+
+
+
+
 
 
 

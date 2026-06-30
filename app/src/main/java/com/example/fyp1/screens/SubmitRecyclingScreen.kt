@@ -1,12 +1,19 @@
 package com.example.fyp1.screens
 
 import android.content.Intent
+import android.Manifest
+import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -31,8 +38,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Logout
 import androidx.compose.material.icons.filled.CardGiftcard
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Category
+import androidx.compose.material.icons.filled.CameraAlt
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.EmojiEvents
@@ -49,6 +60,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stars
 import androidx.compose.material.icons.filled.WineBar
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -88,15 +100,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import androidx.core.util.Consumer
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -133,32 +149,68 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
     var selectedMat by remember { mutableStateOf("Plastic") }
     var expanded by remember { mutableStateOf(false) }
     var isSubmitting by remember { mutableStateOf(false) }
+    var proofPhotoUri by remember { mutableStateOf<Uri?>(null) }
+    var proofPhotoBitmap by remember { mutableStateOf<Bitmap?>(null) }
+    var showProofPhotoRequired by remember { mutableStateOf(false) }
+    var showPhotoSourceDialog by remember { mutableStateOf(false) }
+    var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val hasProofPhoto = proofPhotoUri != null || proofPhotoBitmap != null
+    val showPopOut = { title: String, message: String, type: PopOutMessageType ->
+        popOutMessage = AppPopOutMessage(title = title, message = message, type = type)
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            proofPhotoUri = uri
+            proofPhotoBitmap = null
+            showProofPhotoRequired = false
+        }
+    }
+    val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
+        if (bitmap != null) {
+            proofPhotoBitmap = bitmap
+            proofPhotoUri = null
+            showProofPhotoRequired = false
+        }
+    }
+    val cameraPermissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) {
+            cameraLauncher.launch(null)
+        } else {
+            showPopOut("Camera access needed", "Please allow camera permission to take a proof photo for your deposit.", PopOutMessageType.Error)
+        }
+    }
     val backStackEntry by navController.currentBackStackEntryAsState()
     val scannedQrResult = backStackEntry?.savedStateHandle?.get<String>("qr_scan_result")
 
     LaunchedEffect(scannedQrResult) {
         scannedQrResult?.let { value ->
-            Toast.makeText(context, "Scanned station: $value", Toast.LENGTH_SHORT).show()
+            showPopOut("Station detected", "Scanned station: $value", PopOutMessageType.Success)
             // TODO: Store scanned station identifier when deposit submission supports it.
             backStackEntry?.savedStateHandle?.remove<String>("qr_scan_result")
         }
     }
 
-    val submitDeposit: () -> Unit = {
+    val submitDeposit: () -> Unit = submit@{
         val w = weight.toDoubleOrNull()
         when {
             weight.isBlank() -> {
-                Toast.makeText(context, "Weight Required: Please enter the estimated weight in kg before submitting.", Toast.LENGTH_SHORT).show()
+                showPopOut("Wait a second!", "Please enter a valid weight for your deposit before submitting.", PopOutMessageType.Error)
             }
             w == null -> {
-                Toast.makeText(context, "Invalid Weight: \"$weight\" is not a valid number. Please enter a numeric value (e.g. 1.5).", Toast.LENGTH_SHORT).show()
+                showPopOut("Wait a second!", "Please enter a numeric weight such as 1.5 kg before submitting.", PopOutMessageType.Error)
             }
             w <= 0 -> {
-                Toast.makeText(context, "Invalid Weight: Weight must be greater than 0 kg. Please enter the correct amount.", Toast.LENGTH_SHORT).show()
+                showPopOut("Wait a second!", "Weight must be greater than 0 kg before submitting.", PopOutMessageType.Error)
             }
             else -> {
+                if (!hasProofPhoto) {
+                    showProofPhotoRequired = true
+                    showPopOut("Photo required", "Please upload or take a proof photo before submitting your deposit.", PopOutMessageType.Error)
+                    return@submit
+                }
+
                 val maxKgByMaterial = mapOf(
                     "Metal" to 40.0,
                     "Plastic" to 30.0,
@@ -167,22 +219,14 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
                 )
                 val materialCap = maxKgByMaterial[selectedMat] ?: 50.0
                 if (w > materialCap) {
-                    Toast.makeText(
-                        context,
-                        "Weight Too High: Maximum single submission for $selectedMat is ${materialCap.toInt()} kg. ",
-                        Toast.LENGTH_LONG
-                    ).show()
+                    showPopOut("Weight too high", "Maximum single submission for $selectedMat is ${materialCap.toInt()} kg.", PopOutMessageType.Error)
                 } else {
                     isSubmitting = true
                     scope.launch {
                         try {
                             viewModel.submitRecyclingLog(selectedMat, w, context)
                         } catch (e: Exception) {
-                            Toast.makeText(
-                                context,
-                                "Submission Failed: An unexpected error occurred. Please try again. (${e.localizedMessage})",
-                                Toast.LENGTH_LONG
-                            ).show()
+                            showPopOut("Submission failed", "An unexpected error occurred. Please try again. (${e.localizedMessage})", PopOutMessageType.Error)
                         } finally {
                             isSubmitting = false
                         }
@@ -192,6 +236,43 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
         }
     }
 
+
+    AppPopOutDialog(
+        message = popOutMessage,
+        onDismiss = { popOutMessage = null }
+    )
+
+    if (showPhotoSourceDialog) {
+        AlertDialog(
+            onDismissRequest = { showPhotoSourceDialog = false },
+            title = { Text("Proof of Deposit") },
+            text = { Text("Upload an existing photo or take a new photo before submitting your deposit.") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoSourceDialog = false
+                        galleryLauncher.launch("image/*")
+                    }
+                ) {
+                    Text("Upload Photo")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showPhotoSourceDialog = false
+                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                            cameraLauncher.launch(null)
+                        } else {
+                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
+                        }
+                    }
+                ) {
+                    Text("Take Photo")
+                }
+            }
+        )
+    }
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -219,8 +300,17 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
                     expanded = expanded,
                     weight = weight,
                     isSubmitting = isSubmitting,
+                    proofPhotoUri = proofPhotoUri,
+                    proofPhotoBitmap = proofPhotoBitmap,
+                    showProofPhotoError = showProofPhotoRequired,
                     onExpandedChange = { expanded = it },
                     onMaterialSelected = { selectedMat = it; expanded = false },
+                    onProofPhotoClick = { showPhotoSourceDialog = true },
+                    onProofPhotoRemove = {
+                        proofPhotoUri = null
+                        proofPhotoBitmap = null
+                        showProofPhotoRequired = false
+                    },
                     onWeightChange = { input ->
                         if (input.matches(Regex("^\\d*\\.?\\d*$"))) {
                             weight = input
@@ -343,9 +433,14 @@ private fun SubmitDepositFormCard(
     expanded: Boolean,
     weight: String,
     isSubmitting: Boolean,
+    proofPhotoUri: Uri?,
+    proofPhotoBitmap: Bitmap?,
+    showProofPhotoError: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onMaterialSelected: (String) -> Unit,
     onWeightChange: (String) -> Unit,
+    onProofPhotoClick: () -> Unit,
+    onProofPhotoRemove: () -> Unit,
     onSubmit: () -> Unit
 ) {
     Card(
@@ -402,6 +497,19 @@ private fun SubmitDepositFormCard(
                 )
             }
 
+            Column {
+                FieldLabel("Proof of Deposit")
+                Spacer(Modifier.height(10.dp))
+                ProofPhotoPicker(
+                    proofPhotoUri = proofPhotoUri,
+                    proofPhotoBitmap = proofPhotoBitmap,
+                    showError = showProofPhotoError,
+                    enabled = !isSubmitting,
+                    onClick = onProofPhotoClick,
+                    onRemove = onProofPhotoRemove
+                )
+            }
+
             Button(
                 onClick = onSubmit,
                 modifier = Modifier
@@ -421,6 +529,110 @@ private fun SubmitDepositFormCard(
     }
 }
 
+@Composable
+private fun ProofPhotoPicker(
+    proofPhotoUri: Uri?,
+    proofPhotoBitmap: Bitmap?,
+    showError: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit,
+    onRemove: () -> Unit
+) {
+    val hasPhoto = proofPhotoUri != null || proofPhotoBitmap != null
+    Column {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(if (hasPhoto) 150.dp else 82.dp)
+                .clip(RoundedCornerShape(18.dp))
+                .drawBehind {
+                    drawRoundRect(
+                        color = Color(0x6643A047),
+                        style = Stroke(
+                            width = 1.6.dp.toPx(),
+                            pathEffect = PathEffect.dashPathEffect(floatArrayOf(10f, 8f), 0f)
+                        ),
+                        cornerRadius = androidx.compose.ui.geometry.CornerRadius(18.dp.toPx())
+                    )
+                }
+                .clickable(enabled = enabled && !hasPhoto) { onClick() },
+            contentAlignment = Alignment.Center
+        ) {
+            when {
+                proofPhotoUri != null -> {
+                    AsyncImage(
+                        model = proofPhotoUri,
+                        contentDescription = "Proof of deposit photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                proofPhotoBitmap != null -> {
+                    Image(
+                        bitmap = proofPhotoBitmap.asImageBitmap(),
+                        contentDescription = "Proof of deposit photo",
+                        modifier = Modifier.fillMaxSize(),
+                        contentScale = ContentScale.Crop
+                    )
+                }
+                else -> {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.CameraAlt,
+                            contentDescription = null,
+                            tint = Color(0xFF43A047),
+                            modifier = Modifier.size(28.dp)
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = "Upload Photo",
+                            color = Color(0xFF43A047),
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                }
+            }
+
+            if (hasPhoto) {
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .size(30.dp)
+                        .clickable(enabled = enabled) { onRemove() },
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.92f)
+                ) {
+                    Icon(
+                        Icons.Default.Close,
+                        contentDescription = "Remove proof photo",
+                        tint = Color(0xFF1D1F1D),
+                        modifier = Modifier.padding(7.dp)
+                    )
+                }
+            }
+        }
+        if (showError) {
+            Spacer(Modifier.height(8.dp))
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    Icons.Default.ErrorOutline,
+                    contentDescription = null,
+                    tint = Color(0xFFE53935),
+                    modifier = Modifier.size(14.dp)
+                )
+                Spacer(Modifier.width(5.dp))
+                Text(
+                    text = "PHOTO REQUIRED",
+                    color = Color(0xFFE53935),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Black
+                )
+            }
+        }
+    }
+}
 @Composable
 private fun FieldLabel(text: String) {
     Text(
@@ -459,4 +671,13 @@ private fun SubmissionNoteBox() {
         )
     }
 }
+
+
+
+
+
+
+
+
+
 
