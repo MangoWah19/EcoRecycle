@@ -160,6 +160,9 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         composable("edit_profile") { EditProfileScreen(navController, viewModel) }
         composable("leaderboard") { LeaderboardScreen(navController, viewModel) }
         composable("missions") { MissionsScreen(navController, viewModel) }
+        composable("mission_details/{missionType}") { backStack ->
+            MissionDetailsScreen(navController, viewModel, backStack.arguments?.getString("missionType") ?: "zero_waste_coffee")
+        }
         composable("achievements") { AchievementsScreen(navController, viewModel) }
         composable("forgot_password") { ForgotPasswordScreen(navController) }
         composable("reset_password") { ResetPasswordScreen(navController) }
