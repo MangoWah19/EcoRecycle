@@ -1,4 +1,4 @@
 <resources>
-    <string name="app_name">FYP1</string>
+    <string name="app_name">FYP2</string>
     <string name="backend_base_url">http://10.0.2.2:5000/api/v1/</string>
 </resources>
