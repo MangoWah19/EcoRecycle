@@ -177,30 +177,7 @@ fun ResetPasswordScreen(navController: NavController) {
 
             Button(
                 onClick = {
-                    when {
-                        newPassword.length < 6 -> {
-                            Toast.makeText(context, "Password must be at least 6 characters.", Toast.LENGTH_SHORT).show()
-                        }
-                        newPassword != confirmPassword -> {
-                            Toast.makeText(context, "Passwords do not match.", Toast.LENGTH_SHORT).show()
-                        }
-                        else -> {
-                            isLoading = true
-                            scope.launch {
-                                try {
-                                    supabase.auth.updateUser {
-                                        password = newPassword
-                                    }
-                                    Toast.makeText(context, "Password updated successfully! Please log in.", Toast.LENGTH_LONG).show()
-                                    navController.navigate("login") { popUpTo(0) }
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
-                                } finally {
-                                    isLoading = false
-                                }
-                            }
-                        }
-                    }
+                    Toast.makeText(context, "Forgot password is currently unavailable.", Toast.LENGTH_LONG).show()
                 },
                 modifier = Modifier.fillMaxWidth().height(50.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954)),

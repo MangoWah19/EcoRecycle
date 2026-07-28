@@ -215,34 +215,7 @@ fun ForgotPasswordScreen(navController: NavController) {
                 Spacer(Modifier.height(24.dp))
                 Button(
                     onClick = {
-                        when {
-                            email.isBlank() -> {
-                                Toast.makeText(context, "Email Required: Please enter your student email.", Toast.LENGTH_SHORT).show()
-                            }
-                            !email.endsWith("@student.uow.edu.my") -> {
-                                Toast.makeText(context, "Invalid Email: Please use your @student.uow.edu.my account.", Toast.LENGTH_SHORT).show()
-                            }
-                            else -> {
-                                isLoading = true
-                                scope.launch {
-                                    try {
-                                        supabase.auth.resetPasswordForEmail(
-                                            email = email,
-                                            redirectUrl = "https://glittering-custard-7c32c3.netlify.app"
-                                        )
-                                        emailSent = true
-                                    } catch (e: Exception) {
-                                        Toast.makeText(
-                                            context,
-                                            "Failed to send reset email. Please check your connection and try again.",
-                                            Toast.LENGTH_LONG
-                                        ).show()
-                                    } finally {
-                                        isLoading = false
-                                    }
-                                }
-                            }
-                        }
+                        Toast.makeText(context, "Forgot password is currently unavailable.", Toast.LENGTH_LONG).show()
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954)),

@@ -116,6 +116,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.example.fyp1.api.AuthUser
 import com.example.fyp1.engines.*
 import com.example.fyp1.navigation.AppNavigation
 
@@ -163,6 +164,7 @@ class MainViewModel : ViewModel() {
     var userPoints by mutableIntStateOf(0)
     var userName by mutableStateOf("Loading...")
     var isRefreshing by mutableStateOf(false)
+    var backendUser by mutableStateOf<AuthUser?>(null)
 
     val leaderboard = mutableStateListOf<LeaderboardEntry>()
     val leaderboardWithRank = mutableStateListOf<LeaderboardEntryWithRank>()
@@ -185,13 +187,26 @@ class MainViewModel : ViewModel() {
     var streakDays by mutableIntStateOf(0)
     var totalRedemptions by mutableIntStateOf(0)
 
+    fun applyBackendUser(user: AuthUser) {
+        backendUser = user
+        userName = user.name
+    }
+
+    fun clearBackendUser() {
+        backendUser = null
+        userName = "Loading..."
+        userPoints = 0
+    }
+
     fun fetchUserData() {
         viewModelScope.launch {
             isRefreshing = true
             try {
                 val user = supabase.auth.currentUserOrNull()
                 if (user == null) {
-                    userName = "Not Logged In"
+                    if (backendUser == null) {
+                        userName = "Not Logged In"
+                    }
                     userPoints = 0
                     return@launch
                 }

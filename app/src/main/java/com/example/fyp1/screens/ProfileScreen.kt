@@ -35,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -48,15 +49,15 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fyp1.MainViewModel
+import com.example.fyp1.api.AuthRepository
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
-import com.example.fyp1.supabase
-import io.github.jan.supabase.auth.auth
 import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val authRepository = remember { AuthRepository(context) }
     val recycledKg = viewModel.recyclingHistory.sumOf { it.quantity }
     val approvedDeposits = viewModel.recyclingHistory.count { it.status.equals("Approved", ignoreCase = true) }
 
@@ -130,7 +131,8 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
                     onClick = {
                         scope.launch {
                             try {
-                                supabase.auth.signOut()
+                                authRepository.clearSession()
+                                viewModel.clearBackendUser()
                                 navController.navigate("login") { popUpTo(0) }
                             } catch (e: Exception) {
                                 Toast.makeText(

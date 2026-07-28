@@ -7,6 +7,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -85,6 +86,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextAlign
@@ -117,6 +119,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import com.example.fyp1.*
+import com.example.fyp1.api.AuthRepository
+import com.example.fyp1.api.AuthResult
 import com.example.fyp1.screens.*
 
 @Composable
@@ -129,7 +133,7 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
     LaunchedEffect(currentIntent) {
         if (isResetIntent(currentIntent)) {
             navController.navigate("reset_password") {
-                popUpTo("login") { inclusive = false }
+                popUpTo("auth_loading") { inclusive = false }
             }
             currentIntent = Intent()
         }
@@ -143,7 +147,8 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         onDispose { activity.removeOnNewIntentListener(listener) }
     }
 
-    NavHost(navController = navController, startDestination = "login") {
+    NavHost(navController = navController, startDestination = "auth_loading") {
+        composable("auth_loading") { AuthLoadingScreen(navController, viewModel) }
         composable("login") { LoginScreen(navController, viewModel) }
         composable("home") { HomeScreen(navController, viewModel) }
         composable("rewards") { RewardsScreen(navController, viewModel) }
@@ -166,6 +171,103 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         composable("achievements") { AchievementsScreen(navController, viewModel) }
         composable("forgot_password") { ForgotPasswordScreen(navController) }
         composable("reset_password") { ResetPasswordScreen(navController) }
+    }
+}
+
+@Composable
+private fun AuthLoadingScreen(navController: NavController, viewModel: MainViewModel) {
+    val context = LocalContext.current
+    val authRepository = remember { AuthRepository(context) }
+    var loadingMessage by remember { mutableStateOf("Checking your saved login...") }
+
+    LaunchedEffect(Unit) {
+        val startedAt = System.currentTimeMillis()
+        suspend fun waitForMinimumLoadingTime() {
+            val remainingDelay = 1500L - (System.currentTimeMillis() - startedAt)
+            if (remainingDelay > 0) delay(remainingDelay)
+        }
+
+        val savedUser = authRepository.getSavedUser()
+        if (savedUser == null || !authRepository.isLoggedIn()) {
+            loadingMessage = "Please log in to continue."
+            waitForMinimumLoadingTime()
+            navController.navigate("login") {
+                popUpTo("auth_loading") { inclusive = true }
+            }
+            return@LaunchedEffect
+        }
+
+        viewModel.applyBackendUser(savedUser)
+        loadingMessage = "Welcome back, ${savedUser.name}. Verifying your session..."
+        when (val result = authRepository.me()) {
+            is AuthResult.Success -> {
+                viewModel.applyBackendUser(result.value)
+                loadingMessage = "Login verified. Opening your dashboard..."
+                waitForMinimumLoadingTime()
+                navController.navigate("home") {
+                    popUpTo("auth_loading") { inclusive = true }
+                }
+            }
+            is AuthResult.Error -> {
+                authRepository.clearSession()
+                viewModel.clearBackendUser()
+                loadingMessage = "Your session has expired. Please log in again."
+                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                waitForMinimumLoadingTime()
+                navController.navigate("login") {
+                    popUpTo("auth_loading") { inclusive = true }
+                }
+            }
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color(0xFFF5F7F5))
+            .padding(28.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Image(
+                painter = painterResource(id = R.drawable.ic_launcher_foreground),
+                contentDescription = "App logo",
+                modifier = Modifier.size(92.dp)
+            )
+            Spacer(Modifier.height(18.dp))
+            Surface(
+                modifier = Modifier.size(72.dp),
+                shape = CircleShape,
+                color = Color(0xFFE6EDE9)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        color = Color(0xFF006B1B),
+                        strokeWidth = 4.dp,
+                        modifier = Modifier.size(38.dp)
+                    )
+                }
+            }
+            Spacer(Modifier.height(22.dp))
+            Text(
+                text = loadingMessage,
+                color = Color(0xFF2C2F2E),
+                fontSize = 16.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                lineHeight = 22.sp
+            )
+            Spacer(Modifier.height(8.dp))
+            Text(
+                text = "Please wait while we prepare your account.",
+                color = Color(0xFF686E6B),
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center
+            )
+        }
     }
 }
 

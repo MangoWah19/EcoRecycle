@@ -117,6 +117,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import com.example.fyp1.*
+import com.example.fyp1.api.AuthRepository
+import com.example.fyp1.api.AuthResult
 import com.example.fyp1.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -130,11 +132,13 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
     var hasAttemptedSubmit by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val authRepository = remember { AuthRepository(context) }
 
     // Inline validation states 闂?only shown after user attempts to submit
     val passwordError = if (hasAttemptedSubmit) {
         when {
             password.isBlank() -> "Password is required."
+            isSignUp && password.length < 8 -> "Password must be at least 8 characters."
             else -> null
         }
     } else null
@@ -143,7 +147,6 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
         when {
             email.isBlank() -> "Email is required."
             !email.contains("@") || !email.contains(".") -> "Enter a valid email (e.g. user@example.com)."
-            !email.endsWith("@student.uow.edu.my") -> "Please enter your student account"
             else -> null
         }
     } else null
@@ -220,93 +223,45 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
                 // Mark that user has attempted to submit 闂?this triggers inline field errors
                 hasAttemptedSubmit = true
 
-// Extra domain check as a second safety net for sign up
-                if (isSignUp && !email.endsWith("@student.uow.edu.my")) {
-                    Toast.makeText(
-                        context,
-                        "Please enter your uow student account .",
-                        Toast.LENGTH_LONG
-                    ).show()
-                    return@Button
-                }
-
                 val hasFieldErrors = emailError != null || passwordError != null || fullNameError != null
                 if (hasFieldErrors) return@Button
 
                 isLoading = true
                 scope.launch {
-                    try {
-                        if (isSignUp) {
-                            supabase.auth.signUpWith(Email) {
-                                this.email = email
-                                this.password = password
-                                data = buildJsonObject {
-                                    put("full_name", fullName)
-                                }
+                    if (isSignUp) {
+                        when (val result = authRepository.register(fullName.trim(), email.trim(), password)) {
+                            is AuthResult.Success -> {
+                                isLoading = false
+                                Toast.makeText(
+                                    context,
+                                    "Registration Successful! Your account has been created. You can now log in.",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                                email = ""
+                                password = ""
+                                fullName = ""
+                                hasAttemptedSubmit = false
+                                isSignUp = false
                             }
-
-                            delay(1500)
-
-                            val newUser = supabase.auth.currentUserOrNull()
-                            newUser?.let { user ->
-                                try {
-                                    supabase.postgrest["profiles"].insert(
-                                        Profile(
-                                            id = user.id,
-                                            username = email.substringBefore("@"),
-                                            full_name = fullName,
-                                            total_points = 0,
-                                            lifetime_points = 0
-                                        )
-                                    )
-                                } catch (e: Exception) {
-                                    // Profile might already exist
-                                }
-                            }
-
-                            isLoading = false
-                            Toast.makeText(
-                                context,
-                                "Registration Successful! Your account has been created. You can now log in.",
-                                Toast.LENGTH_LONG
-                            ).show()
-
-                            email = ""
-                            password = ""
-                            fullName = ""
-                            hasAttemptedSubmit = false
-                            isSignUp = false
-
-                        } else {
-                            supabase.auth.signInWith(Email) {
-                                this.email = email
-                                this.password = password
-                            }
-
-                            isLoading = false
-
-                            navController.navigate("home") {
-                                popUpTo("login") { inclusive = true }
+                            is AuthResult.Error -> {
+                                isLoading = false
+                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
                             }
                         }
-                    } catch (e: Exception) {
-                        isLoading = false
-
-                        val errorMessage = when {
-                            e.message?.contains("Invalid login credentials") == true ->
-                                "Login Failed: The email or password you entered is incorrect. Please double-check and try again."
-                            e.message?.contains("User already registered") == true ->
-                                "Account Already Exists: This email address is already registered. Please use the Login option instead."
-                            e.message?.contains("Password should be at least") == true ->
-                                "Weak Password: Your password must be at least 6 characters long. Please choose a stronger password."
-                            e.message?.contains("Unable to validate email address") == true ->
-                                "Invalid Email: The email address format is not valid. Please check and try again."
-                            e.message?.contains("Network") == true || e.message?.contains("timeout") == true ->
-                                "Connection Error: Unable to reach the server. Please check your internet connection and try again."
-                            else -> "Unexpected Error: Something went wrong. Please try again. (${e.localizedMessage ?: "Unknown error"})"
+                    } else {
+                        when (val result = authRepository.login(email.trim(), password)) {
+                            is AuthResult.Success -> {
+                                viewModel.applyBackendUser(result.value.user)
+                                isLoading = false
+                                navController.navigate("home") {
+                                    popUpTo("login") { inclusive = true }
+                                }
+                            }
+                            is AuthResult.Error -> {
+                                isLoading = false
+                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                            }
                         }
-
-                        Toast.makeText(context, errorMessage, Toast.LENGTH_LONG).show()
                     }
                 }
             },
