@@ -35,6 +35,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
@@ -60,6 +61,10 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
     val authRepository = remember { AuthRepository(context) }
     val recycledKg = viewModel.recyclingHistory.sumOf { it.quantity }
     val approvedDeposits = viewModel.recyclingHistory.count { it.status.equals("Approved", ignoreCase = true) }
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshHomeProfileData(context)
+    }
 
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
@@ -227,6 +232,13 @@ private fun ProfileIdentity(userName: String, onEdit: () -> Unit) {
 
 @Composable
 private fun ProfileStatsCard(recycledKg: Double, savedCount: Int, points: Int) {
+    val recycledText = if (recycledKg > 0.0) {
+        if (recycledKg % 1.0 == 0.0) "${recycledKg.toInt()}kg" else "%.1fkg".format(recycledKg)
+    } else {
+        "--kg"
+    }
+    val savedText = if (savedCount > 0) savedCount.toString() else "--"
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(22.dp),
@@ -241,11 +253,11 @@ private fun ProfileStatsCard(recycledKg: Double, savedCount: Int, points: Int) {
             horizontalArrangement = Arrangement.SpaceEvenly,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            ProfileStat(value = "--kg", label = "RECYCLED")
+            ProfileStat(value = recycledText, label = "RECYCLED")
             StatDivider()
-            ProfileStat(value = "--", label = "SAVED")
+            ProfileStat(value = savedText, label = "APPROVED")
             StatDivider()
-            ProfileStat(value = "--", label = "POINTS")
+            ProfileStat(value = points.toString(), label = "POINTS")
         }
     }
 }

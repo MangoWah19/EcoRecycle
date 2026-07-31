@@ -157,6 +157,13 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         composable("recycling_history") { RecyclingHistoryScreen(navController, viewModel) }
         composable("qr_scanner") { QRScannerScreen(navController) }
         composable("eco_learning") { EcoLearningScreen(navController) }
+        composable("content_detail/{contentId}") { backStack ->
+            ContentDetailScreen(navController, backStack.arguments?.getString("contentId") ?: "")
+        }
+        composable("quiz_attempt/{contentId}") { backStack ->
+            QuizAttemptScreen(navController, backStack.arguments?.getString("contentId") ?: "")
+        }
+        composable("quiz_review") { QuizReviewScreen(navController) }
         composable("recycling_guide") { RecyclingGuideScreen(navController) }
         composable("guide_detail/{material}") { backStack ->
             val mat = backStack.arguments?.getString("material") ?: ""

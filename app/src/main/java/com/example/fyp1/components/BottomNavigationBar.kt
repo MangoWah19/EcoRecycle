@@ -120,7 +120,7 @@ fun BottomNavigationBar(navController: NavController) {
             label = "LEARN",
             route = "eco_learning",
             icon = Icons.AutoMirrored.Filled.MenuBook,
-            activeRoutes = setOf("eco_learning")
+            activeRoutes = setOf("eco_learning", "content_detail/{contentId}", "quiz_attempt/{contentId}", "quiz_review")
         ),
         BottomNavItem("PROFILE", "profile", Icons.Default.Person)
     )

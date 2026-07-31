@@ -374,10 +374,11 @@ private fun MissionDetailTopBar(onBack: () -> Unit) {
 
 @Composable
 private fun MissionHero(mission: BackendMission) {
+    val imageRequest = rememberEcoImageRequest(mission.imageUrl)
     Box(modifier = Modifier.fillMaxWidth().height(220.dp).clip(RoundedCornerShape(28.dp))) {
-        if (!mission.imageUrl.isNullOrBlank()) {
+        if (imageRequest != null) {
             AsyncImage(
-                model = mission.imageUrl,
+                model = imageRequest,
                 contentDescription = mission.title,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
@@ -551,6 +552,7 @@ private fun RecentSubmissionCard(submission: BackendSubmission) {
         url = submission.proofImageUrl ?: submission.photoUrl,
         backendBaseUrl = context.getString(R.string.backend_base_url)
     )
+    val imageRequest = rememberEcoImageRequest(imageUrl)
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(26.dp),
@@ -567,9 +569,9 @@ private fun RecentSubmissionCard(submission: BackendSubmission) {
                         .background(MissionSoftSurface),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (!imageUrl.isNullOrBlank()) {
+                    if (imageRequest != null) {
                         AsyncImage(
-                            model = imageUrl,
+                            model = imageRequest,
                             contentDescription = "Submission proof image",
                             modifier = Modifier.fillMaxSize(),
                             contentScale = ContentScale.Crop

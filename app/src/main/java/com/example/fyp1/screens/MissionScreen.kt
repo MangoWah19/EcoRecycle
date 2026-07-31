@@ -64,16 +64,17 @@ import com.example.fyp1.components.FloatingBottomNavigationScaffold
 import java.time.Instant
 import java.time.format.DateTimeParseException
 
-private val MissionTabs = listOf("All", "Active", "Ongoing", "Pending Review", "Approved", "Achieved")
+private val MissionTabs = listOf("All", "Available to Join", "Ongoing", "Pending Review", "Approved Proofs", "Completed Mission")
 
 private enum class MissionUiStatus {
-    Active,
+    AvailableToJoin,
     Ongoing,
     Pending,
     PendingReview,
-    Approved,
+    ApprovedProofs,
     Rejected,
-    Achieved
+    Completed,
+    Expired
 }
 
 @Composable
@@ -90,7 +91,7 @@ fun MissionsScreen(navController: NavController, viewModel: MainViewModel) {
     var selectedMissionTab by remember { mutableStateOf("All") }
     val visibleBackendMissions = backendMissions.filter { mission ->
         val query = searchQuery.trim()
-        val status = missionStatusFor(mission, mySubmissions.latestForMission(mission.id))
+        val status = missionStatusFor(mission, mySubmissions.forMission(mission.id))
         missionMatchesTab(status, selectedMissionTab) && (query.isBlank() ||
             mission.title.contains(query, ignoreCase = true) ||
             mission.description.contains(query, ignoreCase = true) ||
@@ -149,9 +150,10 @@ fun MissionsScreen(navController: NavController, viewModel: MainViewModel) {
                 item { MissionInfoMessage("No missions found.") }
             }
             items(visibleBackendMissions) { mission ->
+                val missionSubmissions = mySubmissions.forMission(mission.id)
                 BackendMissionCard(
                     mission = mission,
-                    status = missionStatusFor(mission, mySubmissions.latestForMission(mission.id)),
+                    status = missionStatusFor(mission, missionSubmissions),
                     onClick = {
                         MissionSelectionCache.selectedMission = mission
                         navController.navigate("mission_details/${mission.id}")
@@ -190,7 +192,7 @@ private fun BackendMissionCard(mission: BackendMission, status: MissionUiStatus,
                     maxLines = 3,
                     overflow = TextOverflow.Ellipsis
                 )
-                MissionButton(text = "View Details", primary = status == MissionUiStatus.Active || status == MissionUiStatus.Ongoing, enabled = true, onClick = onClick)
+                MissionButton(text = "View Details", primary = status == MissionUiStatus.AvailableToJoin || status == MissionUiStatus.Ongoing, enabled = true, onClick = onClick)
             }
         }
     }
@@ -198,10 +200,11 @@ private fun BackendMissionCard(mission: BackendMission, status: MissionUiStatus,
 
 @Composable
 private fun MissionCardHero(mission: BackendMission, onClick: () -> Unit) {
+    val imageRequest = rememberEcoImageRequest(mission.imageUrl)
     Box(modifier = Modifier.fillMaxWidth().height(180.dp).clickable(onClick = onClick)) {
-        if (!mission.imageUrl.isNullOrBlank()) {
+        if (imageRequest != null) {
             AsyncImage(
-                model = mission.imageUrl,
+                model = imageRequest,
                 contentDescription = mission.title,
                 modifier = Modifier.fillMaxSize(),
                 contentScale = ContentScale.Crop
@@ -375,19 +378,23 @@ private val MissionText = Color(0xFF2C2F2E)
 private val MissionMuted = Color(0xFF686E6B)
 private val MissionSoftSurface = Color(0xFFE6EDE9)
 
-private fun missionStatusFor(mission: BackendMission, submission: BackendSubmission?): MissionUiStatus {
-    if (mission.hasExpired()) {
-        return MissionUiStatus.Achieved
+private fun missionStatusFor(mission: BackendMission, submissions: List<BackendSubmission>): MissionUiStatus {
+    if (mission.isCompletedBy(submissions)) {
+        return MissionUiStatus.Completed
     }
 
-    return when (submission?.status?.uppercase()) {
+    return when (submissions.latestForMission(mission.id)?.status?.uppercase()) {
         "ONGOING" -> MissionUiStatus.Ongoing
         "PENDING_REVIEW" -> MissionUiStatus.PendingReview
-        "APPROVED" -> MissionUiStatus.Approved
+        "APPROVED" -> MissionUiStatus.ApprovedProofs
         "REJECTED" -> MissionUiStatus.Rejected
         "PENDING" -> MissionUiStatus.Pending
-        else -> MissionUiStatus.Active
+        else -> if (mission.hasExpired()) MissionUiStatus.Expired else MissionUiStatus.AvailableToJoin
     }
+}
+
+private fun List<BackendSubmission>.forMission(missionId: String): List<BackendSubmission> {
+    return filter { it.missionId == missionId }
 }
 
 private fun List<BackendSubmission>.latestForMission(missionId: String): BackendSubmission? {
@@ -397,12 +404,28 @@ private fun List<BackendSubmission>.latestForMission(missionId: String): Backend
 
 private fun missionMatchesTab(status: MissionUiStatus, tab: String): Boolean = when (tab) {
     "All" -> true
-    "Active" -> status == MissionUiStatus.Active
+    "Available to Join" -> status == MissionUiStatus.AvailableToJoin
     "Ongoing" -> status == MissionUiStatus.Ongoing
     "Pending Review" -> status == MissionUiStatus.PendingReview
-    "Approved" -> status == MissionUiStatus.Approved
-    "Achieved" -> status == MissionUiStatus.Achieved
+    "Approved Proofs" -> status == MissionUiStatus.ApprovedProofs
+    "Completed Mission" -> status == MissionUiStatus.Completed
     else -> true
+}
+
+private fun BackendMission.isCompletedBy(submissions: List<BackendSubmission>): Boolean {
+    val approvedSubmissions = submissions.filter { it.status.equals("APPROVED", ignoreCase = true) }
+    return when (type) {
+        "QUANTITY_BASED" -> {
+            val target = targetQuantity ?: return false
+            approvedSubmissions.sumOf { it.quantity ?: 0 } >= target
+        }
+        "STREAK_BASED" -> {
+            val target = targetDays ?: return false
+            approvedSubmissions.size >= target
+        }
+        "TIME_LIMITED" -> approvedSubmissions.isNotEmpty()
+        else -> false
+    }
 }
 
 private fun BackendMission.hasExpired(): Boolean {

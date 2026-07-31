@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -58,7 +59,10 @@ import com.example.fyp1.components.FloatingBottomNavigationScaffold
 
 @Composable
 fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
-    LaunchedEffect(Unit) { viewModel.fetchUserData() }
+    val context = LocalContext.current
+    LaunchedEffect(Unit) {
+        viewModel.refreshHomeProfileData(context)
+    }
 
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
@@ -85,7 +89,7 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                     userName = viewModel.userName,
                     userPoints = viewModel.userPoints,
                     isRefreshing = viewModel.isRefreshing,
-                    onRefresh = { viewModel.fetchUserData() }
+                    onRefresh = { viewModel.refreshHomeProfileData(context) }
                 )
             }
 
@@ -114,7 +118,7 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                         modifier = Modifier.weight(1f)
                     ) { navController.navigate("rewards") }
                     HomeActionTile(
-                        label = "Achievements",
+                        label = "Badges",
                         icon = Icons.Default.EmojiEvents,
                         backgroundColor = Color(0xFFF0FBFF),
                         iconColor = Color(0xFF00656F),

@@ -1,5 +1,6 @@
 package com.example.fyp1
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
@@ -116,7 +117,10 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import com.example.fyp1.api.AuthRepository
+import com.example.fyp1.api.AuthResult
 import com.example.fyp1.api.AuthUser
+import com.example.fyp1.api.PointsRepository
 import com.example.fyp1.engines.*
 import com.example.fyp1.navigation.AppNavigation
 
@@ -192,6 +196,24 @@ class MainViewModel : ViewModel() {
         userName = user.name
     }
 
+    fun applyBackendPoints(points: Int) {
+        userPoints = points
+        lifetimePoints = points
+    }
+
+    fun refreshBackendUserSummary(context: Context) {
+        viewModelScope.launch {
+            refreshBackendUserSummaryNow(context)
+        }
+    }
+
+    fun refreshHomeProfileData(context: Context) {
+        viewModelScope.launch {
+            fetchUserDataNow()
+            refreshBackendUserSummaryNow(context)
+        }
+    }
+
     fun clearBackendUser() {
         backendUser = null
         userName = "Loading..."
@@ -200,99 +222,128 @@ class MainViewModel : ViewModel() {
 
     fun fetchUserData() {
         viewModelScope.launch {
-            isRefreshing = true
-            try {
-                val user = supabase.auth.currentUserOrNull()
-                if (user == null) {
-                    if (backendUser == null) {
-                        userName = "Not Logged In"
-                    }
-                    userPoints = 0
-                    return@launch
-                }
+            fetchUserDataNow()
+        }
+    }
 
-                try {
-                    val profile = supabase.postgrest["profiles"]
-                        .select { filter { eq("id", user.id) } }
-                        .decodeSingle<Profile>()
+    private suspend fun refreshBackendUserSummaryNow(context: Context) {
+        val appContext = context.applicationContext
+        val authRepository = AuthRepository(appContext)
+        val pointsRepository = PointsRepository(appContext)
+
+        when (val result = authRepository.me()) {
+            is AuthResult.Success -> applyBackendUser(result.value)
+            is AuthResult.Error -> Unit
+        }
+
+        when (val result = pointsRepository.getMyPoints()) {
+            is AuthResult.Success -> applyBackendPoints(result.value.total)
+            is AuthResult.Error -> Unit
+        }
+    }
+
+    private suspend fun fetchUserDataNow() {
+        isRefreshing = true
+        try {
+            val user = supabase.auth.currentUserOrNull()
+            if (user == null) {
+                if (backendUser == null) {
+                    userName = "Not Logged In"
+                    userPoints = 0
+                } else {
+                    userName = backendUser?.name ?: "User"
+                }
+                return
+            }
+
+            try {
+                val profile = supabase.postgrest["profiles"]
+                    .select { filter { eq("id", user.id) } }
+                    .decodeSingle<Profile>()
+                if (backendUser == null) {
                     userName = profile.full_name ?: profile.username ?: user.email?.substringBefore("@") ?: "User"
                     userPoints = profile.total_points
-                } catch (e: Exception) {
+                }
+            } catch (e: Exception) {
+                if (backendUser == null) {
                     userName = user.email?.substringBefore("@") ?: "User"
                 }
+            }
 
-                try {
-                    val rewards = supabase.postgrest["rewards_catalog"]
-                        .select { filter { eq("is_active", true) } }
-                        .decodeList<Reward>()
-                    rewardsCatalog.clear()
-                    rewardsCatalog.addAll(rewards)
-                    android.util.Log.d("REWARDS", "Loaded ${rewards.size} rewards")
-                    rewards.forEach { android.util.Log.d("REWARDS", "Reward: ${it.name} | Image: ${it.image_url}") }
-                } catch (e: Exception) {
-                    android.util.Log.e("REWARDS", "Error loading rewards: ${e.message}")
+            try {
+                val rewards = supabase.postgrest["rewards_catalog"]
+                    .select { filter { eq("is_active", true) } }
+                    .decodeList<Reward>()
+                rewardsCatalog.clear()
+                rewardsCatalog.addAll(rewards)
+                android.util.Log.d("REWARDS", "Loaded ${rewards.size} rewards")
+                rewards.forEach { android.util.Log.d("REWARDS", "Reward: ${it.name} | Image: ${it.image_url}") }
+            } catch (e: Exception) {
+                android.util.Log.e("REWARDS", "Error loading rewards: ${e.message}")
+            }
+
+            try {
+                val history = supabase.postgrest["redemptions"]
+                    .select { filter { eq("user_id", user.id) } }
+                    .decodeList<Redemption>()
+                redemptionHistory.clear()
+                redemptionHistory.addAll(history.reversed())
+            } catch (e: Exception) { }
+
+            try {
+                val logs = supabase.postgrest["recycling_logs"]
+                    .select {
+                        filter { eq("user_id", user.id) }
+                        order(column = "created_at", order = Order.DESCENDING)
+                    }
+                    .decodeList<RecyclingLog>()
+                recyclingHistory.clear()
+                recyclingHistory.addAll(logs)
+            } catch (e: Exception) { }
+
+            try {
+                val achievements = supabase.postgrest["achievement_unlocks"]
+                    .select { filter { eq("user_id", user.id) } }
+                    .decodeList<Achievement>()
+                userAchievements.clear()
+                userAchievements.addAll(achievements)
+            } catch (e: Exception) { }
+
+            try {
+                val profile = supabase.postgrest["profiles"]
+                    .select { filter { eq("id", user.id) } }
+                    .decodeSingle<Profile>()
+                if (backendUser == null) {
+                    lifetimePoints = profile.lifetime_points
                 }
 
-                try {
-                    val history = supabase.postgrest["redemptions"]
-                        .select { filter { eq("user_id", user.id) } }
-                        .decodeList<Redemption>()
-                    redemptionHistory.clear()
-                    redemptionHistory.addAll(history.reversed())
-                } catch (e: Exception) { }
+                val approvedLogs = supabase.postgrest["recycling_logs"]
+                    .select { filter { eq("user_id", user.id); eq("status", "Approved") } }
+                    .decodeList<RecyclingLog>()
 
-                try {
-                    val logs = supabase.postgrest["recycling_logs"]
-                        .select {
-                            filter { eq("user_id", user.id) }
-                            order(column = "created_at", order = Order.DESCENDING)
-                        }
-                        .decodeList<RecyclingLog>()
-                    recyclingHistory.clear()
-                    recyclingHistory.addAll(logs)
-                } catch (e: Exception) { }
+                plasticKg = approvedLogs.filter { it.material_type == "Plastic" }.sumOf { it.quantity }.toFloat()
+                paperKg   = approvedLogs.filter { it.material_type == "Paper"   }.sumOf { it.quantity }.toFloat()
+                glassKg   = approvedLogs.filter { it.material_type == "Glass"   }.sumOf { it.quantity }.toFloat()
+                metalKg   = approvedLogs.filter { it.material_type == "Metal"   }.sumOf { it.quantity }.toFloat()
 
-                try {
-                    val achievements = supabase.postgrest["achievement_unlocks"]
-                        .select { filter { eq("user_id", user.id) } }
-                        .decodeList<Achievement>()
-                    userAchievements.clear()
-                    userAchievements.addAll(achievements)
-                } catch (e: Exception) { }
+                val sevenDaysAgo = Instant.now().minusSeconds(7 * 24 * 3600).toString()
+                val recentLogs = approvedLogs.filter {
+                    it.created_at != null && it.created_at >= sevenDaysAgo
+                }
+                streakDays = recentLogs.mapNotNull { it.created_at?.take(10) }.toSet().size
 
-                // Fetch achievement progress stats
-                try {
-                    val profile = supabase.postgrest["profiles"]
-                        .select { filter { eq("id", user.id) } }
-                        .decodeSingle<Profile>()
-                    lifetimePoints = profile.lifetime_points
+                val redemptions = supabase.postgrest["redemptions"]
+                    .select { filter { eq("user_id", user.id) } }
+                    .decodeList<Redemption>()
+                totalRedemptions = redemptions.size
+            } catch (e: Exception) { }
 
-                    val approvedLogs = supabase.postgrest["recycling_logs"]
-                        .select { filter { eq("user_id", user.id); eq("status", "Approved") } }
-                        .decodeList<RecyclingLog>()
-
-                    plasticKg = approvedLogs.filter { it.material_type == "Plastic" }.sumOf { it.quantity }.toFloat()
-                    paperKg   = approvedLogs.filter { it.material_type == "Paper"   }.sumOf { it.quantity }.toFloat()
-                    glassKg   = approvedLogs.filter { it.material_type == "Glass"   }.sumOf { it.quantity }.toFloat()
-                    metalKg   = approvedLogs.filter { it.material_type == "Metal"   }.sumOf { it.quantity }.toFloat()
-
-                    val sevenDaysAgo = Instant.now().minusSeconds(7 * 24 * 3600).toString()
-                    val recentLogs = approvedLogs.filter {
-                        it.created_at != null && it.created_at >= sevenDaysAgo
-                    }
-                    streakDays = recentLogs.mapNotNull { it.created_at?.take(10) }.toSet().size
-
-                    val redemptions = supabase.postgrest["redemptions"]
-                        .select { filter { eq("user_id", user.id) } }
-                        .decodeList<Redemption>()
-                    totalRedemptions = redemptions.size
-                } catch (e: Exception) { }
-
-            } catch (e: Exception) {
+        } catch (e: Exception) {
+            if (backendUser == null) {
                 userName = "Error Loading"
-            } finally {
-                isRefreshing = false
             }
+        } finally {
+            isRefreshing = false
         }
     }
 
