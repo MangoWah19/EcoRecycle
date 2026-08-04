@@ -69,6 +69,7 @@ import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -117,6 +118,8 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import com.example.fyp1.*
+import com.example.fyp1.api.AuthRepository
+import com.example.fyp1.api.AuthResult
 import com.example.fyp1.components.*
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -125,53 +128,158 @@ fun EditProfileScreen(navController: NavController, viewModel: MainViewModel) {
     var tempName by remember { mutableStateOf(viewModel.userName) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
-    Scaffold(topBar = { CenterAlignedTopAppBar(title = { Text("Edit Profile") }) }) { padding ->
-        Column(Modifier.padding(padding).padding(24.dp)) {
-            OutlinedTextField(
-                value = tempName,
-                onValueChange = { tempName = it },
-                label = { Text("Full Name") },
-                modifier = Modifier.fillMaxWidth()
+    val authRepository = remember { AuthRepository(context) }
+    var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
+    var popBackAfterDialog by remember { mutableStateOf(false) }
+    Scaffold(
+        containerColor = Color(0xFFF5F7F5),
+        topBar = {
+            CenterAlignedTopAppBar(
+                title = {
+                    Text(
+                        text = "Edit Profile",
+                        color = Color(0xFF006B1B),
+                        fontWeight = FontWeight.ExtraBold
+                    )
+                },
+                navigationIcon = {
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = "Back",
+                            tint = Color(0xFF006B1B)
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
+                    containerColor = Color(0xFFF5F7F5)
+                )
             )
-            Spacer(Modifier.weight(1f))
+        }
+    ) { padding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding)
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(30.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+                border = BorderStroke(1.dp, Color(0xFFE5EAE6))
+            ) {
+                Column(
+                    modifier = Modifier.padding(22.dp),
+                    verticalArrangement = Arrangement.spacedBy(18.dp)
+                ) {
+                    Surface(
+                        modifier = Modifier.size(58.dp),
+                        shape = CircleShape,
+                        color = Color(0xFFE6F6E9)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = Color(0xFF006B1B),
+                            modifier = Modifier.padding(14.dp)
+                        )
+                    }
+                    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Text(
+                            text = "Profile Name",
+                            color = Color(0xFF2C2F2E),
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                        Text(
+                            text = "Update the name shown across your EcoRecycle account.",
+                            color = Color(0xFF6E7772),
+                            fontSize = 13.sp,
+                            lineHeight = 19.sp
+                        )
+                    }
+                    OutlinedTextField(
+                        value = tempName,
+                        onValueChange = { tempName = it },
+                        label = { Text("Full Name") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(18.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = Color(0xFF006B1B),
+                            focusedLabelColor = Color(0xFF006B1B),
+                            cursorColor = Color(0xFF006B1B)
+                        ),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
             Button(
                 onClick = {
                     when {
                         tempName.isBlank() -> {
-                            Toast.makeText(context, "Name Required: Full name cannot be empty. Please enter your name.", Toast.LENGTH_SHORT).show()
+                            popOutMessage = AppPopOutMessage(
+                                title = "Name Required",
+                                message = "Please enter your full name before saving.",
+                                type = PopOutMessageType.Info
+                            )
                         }
                         tempName.length < 2 -> {
-                            Toast.makeText(context, "Name Too Short: Please enter your full name (at least 2 characters).", Toast.LENGTH_SHORT).show()
+                            popOutMessage = AppPopOutMessage(
+                                title = "Name Too Short",
+                                message = "Please enter a name with at least 2 characters.",
+                                type = PopOutMessageType.Info
+                            )
                         }
                         else -> {
                             scope.launch {
-                                try {
-                                    val user = supabase.auth.currentUserOrNull()
-                                    if (user == null) {
-                                        Toast.makeText(context, "Session Expired: Your login session has expired. Please log in again.", Toast.LENGTH_LONG).show()
-                                        navController.navigate("login") { popUpTo(0) }
-                                        return@launch
+                                when (val result = authRepository.updateProfileName(tempName.trim())) {
+                                    is AuthResult.Success -> {
+                                        viewModel.applyBackendUser(result.value)
+                                        popOutMessage = AppPopOutMessage(
+                                            title = "Profile Updated",
+                                            message = "Your name has been saved successfully.",
+                                            type = PopOutMessageType.Success,
+                                            buttonText = "Back to Profile"
+                                        )
+                                        popBackAfterDialog = true
                                     }
-                                    supabase.postgrest["profiles"].update(mapOf("full_name" to tempName)) {
-                                        filter { eq("id", user.id) }
+                                    is AuthResult.Error -> {
+                                        popOutMessage = AppPopOutMessage(
+                                            title = "Update Failed",
+                                            message = result.message,
+                                            type = PopOutMessageType.Error
+                                        )
                                     }
-                                    viewModel.userName = tempName
-                                    Toast.makeText(context, "Profile Updated: Your name has been saved successfully.", Toast.LENGTH_SHORT).show()
-                                    navController.popBackStack()
-                                } catch (e: Exception) {
-                                    Toast.makeText(context, "Update Failed: Could not save your profile. Please check your connection and try again. (${e.localizedMessage})", Toast.LENGTH_LONG).show()
                                 }
                             }
                         }
                     }
                 },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954))
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF007A20))
             ) {
-                Text("Save Changes")
+                Text("Save Changes", fontWeight = FontWeight.ExtraBold)
             }
         }
     }
+
+    AppPopOutDialog(
+        message = popOutMessage,
+        onDismiss = {
+            popOutMessage = null
+            if (popBackAfterDialog) {
+                popBackAfterDialog = false
+                navController.popBackStack()
+            }
+        }
+    )
 }
 
 // ============================================

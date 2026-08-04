@@ -125,6 +125,7 @@ fun ForgotPasswordScreen(navController: NavController) {
     var email by remember { mutableStateOf("") }
     var isLoading by remember { mutableStateOf(false) }
     var emailSent by remember { mutableStateOf(false) }
+    var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
 
@@ -215,7 +216,11 @@ fun ForgotPasswordScreen(navController: NavController) {
                 Spacer(Modifier.height(24.dp))
                 Button(
                     onClick = {
-                        Toast.makeText(context, "Forgot password is currently unavailable.", Toast.LENGTH_LONG).show()
+                        popOutMessage = AppPopOutMessage(
+                            title = "Password Reset Unavailable",
+                            message = "Password reset is not available in this version yet. Please contact an admin if you need help accessing your account.",
+                            type = PopOutMessageType.Info
+                        )
                     },
                     modifier = Modifier.fillMaxWidth().height(50.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1DB954)),
@@ -234,5 +239,10 @@ fun ForgotPasswordScreen(navController: NavController) {
             }
         }
     }
+
+    AppPopOutDialog(
+        message = popOutMessage,
+        onDismiss = { popOutMessage = null }
+    )
 }
 

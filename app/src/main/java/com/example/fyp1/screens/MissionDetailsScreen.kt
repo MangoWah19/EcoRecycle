@@ -86,7 +86,13 @@ import com.example.fyp1.api.MissionGuideStep
 import com.example.fyp1.api.MissionRepository
 import com.example.fyp1.api.MissionSelectionCache
 import com.example.fyp1.api.SubmitMissionRequest
+import com.example.fyp1.components.AppPopOutDialog
+import com.example.fyp1.components.AppPopOutMessage
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
+import com.example.fyp1.components.PopOutMessageType
+import com.example.fyp1.offline.ConnectionModeChip
+import com.example.fyp1.offline.ConnectionUiMode
+import com.example.fyp1.offline.rememberConnectionUiMode
 import com.google.gson.Gson
 import com.google.gson.JsonArray
 import com.google.gson.JsonSyntaxException
@@ -100,7 +106,8 @@ private val missionGuideGson = Gson()
 
 @Composable
 fun MissionDetailsScreen(navController: NavController, viewModel: MainViewModel, missionType: String) {
-    LaunchedEffect(Unit) { viewModel.fetchUserData() }
+    val context = LocalContext.current
+    LaunchedEffect(Unit) { viewModel.fetchUserData(context) }
 
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         BackendMissionDetailContent(
@@ -118,6 +125,7 @@ private fun BackendMissionDetailContent(
     onBack: () -> Unit
 ) {
     val context = LocalContext.current
+    val connectionMode = rememberConnectionUiMode()
     val missionRepository = remember { MissionRepository(context) }
     val cachedMission = remember(missionId) {
         MissionSelectionCache.selectedMission?.takeIf { it.id == missionId }
@@ -133,6 +141,7 @@ private fun BackendMissionDetailContent(
     var quantity by remember(missionId) { mutableStateOf("") }
     var proofPhotoUri by remember(missionId) { mutableStateOf<Uri?>(null) }
     var proofPhotoBitmap by remember(missionId) { mutableStateOf<Bitmap?>(null) }
+    var popOutMessage by remember(missionId) { mutableStateOf<AppPopOutMessage?>(null) }
 
     LaunchedEffect(missionId) {
         isLoading = mission == null
@@ -157,7 +166,7 @@ private fun BackendMissionDetailContent(
         contentPadding = PaddingValues(top = 0.dp, bottom = padding.calculateBottomPadding()),
         verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        item { MissionDetailTopBar(onBack) }
+        item { MissionDetailTopBar(onBack, connectionMode) }
 
         if (isLoading) {
             item { DetailInfoMessage("Loading mission details...") }
@@ -171,6 +180,7 @@ private fun BackendMissionDetailContent(
 
         mission?.let { currentMission ->
             val ongoingSubmission = submissions.latestForMissionWithStatuses(missionId, setOf("ONGOING"))
+            val pendingUploadSubmission = submissions.latestForMissionWithStatuses(missionId, setOf("PENDING_UPLOAD", "UPLOADING", "FAILED_UPLOAD"))
             val pendingSubmission = submissions.latestForMissionWithStatuses(missionId, setOf("PENDING_REVIEW"))
             val approvedSubmissions = submissions.filter { it.status == "APPROVED" }
             val progress = missionProgress(currentMission, submissions)
@@ -178,17 +188,23 @@ private fun BackendMissionDetailContent(
             val recentSubmissions = submissions
                 .filter { it.status != "ONGOING" && (it.proofImageUrl != null || it.proofText != null || it.quantity != null) }
                 .sortedByDescending { it.submittedAt.orEmpty() }
-            val currentSubmission = ongoingSubmission ?: pendingSubmission ?: approvedSubmissions.maxByOrNull { it.submittedAt.orEmpty() }
+            val currentSubmission = pendingUploadSubmission ?: pendingSubmission ?: ongoingSubmission ?: approvedSubmissions.maxByOrNull { it.submittedAt.orEmpty() }
             val hasActiveSubmission = currentSubmission != null
-            val canSubmitProof = !isMissionComplete && pendingSubmission == null && (ongoingSubmission != null || approvedSubmissions.isNotEmpty())
+            val canSubmitProof = !isMissionComplete && pendingUploadSubmission == null && pendingSubmission == null && (ongoingSubmission != null || approvedSubmissions.isNotEmpty())
             val buttonText = when (currentSubmission?.status) {
                 "ONGOING" -> "SUBMIT PROOF"
+                "PENDING_UPLOAD", "UPLOADING", "FAILED_UPLOAD" -> "PENDING UPLOAD"
                 "PENDING_REVIEW" -> "PENDING REVIEW"
                 "APPROVED" -> if (isMissionComplete) "COMPLETED" else "SUBMIT PROOF"
                 "REJECTED" -> "JOIN MISSION"
                 else -> "JOIN MISSION"
             }
-            val buttonEnabled = !isJoiningMission && !isSubmittingProof && currentSubmission?.status != "PENDING_REVIEW" && !isMissionComplete
+            val isJoinMissionAction = buttonText == "JOIN MISSION"
+            val isJoinBlockedOffline = connectionMode == ConnectionUiMode.Offline && isJoinMissionAction
+            val buttonEnabled = !isJoiningMission &&
+                !isSubmittingProof &&
+                currentSubmission?.status !in setOf("PENDING_UPLOAD", "UPLOADING", "FAILED_UPLOAD", "PENDING_REVIEW") &&
+                !isMissionComplete
 
             item { MissionHero(currentMission) }
             item {
@@ -242,6 +258,14 @@ private fun BackendMissionDetailContent(
                 Button(
                     onClick = {
                         actionMessage = null
+                        if (isJoinBlockedOffline) {
+                            popOutMessage = AppPopOutMessage(
+                                title = "Internet Required",
+                                message = "Please reconnect to the internet before joining this mission. You can still view cached mission details while offline.",
+                                type = PopOutMessageType.Info
+                            )
+                            return@Button
+                        }
                         if (canSubmitProof) {
                             isSubmittingProof = true
                             return@Button
@@ -251,7 +275,10 @@ private fun BackendMissionDetailContent(
                     enabled = buttonEnabled,
                     modifier = Modifier.fillMaxWidth().height(58.dp),
                     shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = MissionPrimary)
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = if (isJoinBlockedOffline) Color(0xFFB8C0BC) else MissionPrimary,
+                        disabledContainerColor = Color(0xFFCDD3D0)
+                    )
                 ) {
                     Text(
                         when {
@@ -269,6 +296,11 @@ private fun BackendMissionDetailContent(
             item { Spacer(Modifier.height(10.dp)) }
         }
     }
+
+    AppPopOutDialog(
+        message = popOutMessage,
+        onDismiss = { popOutMessage = null }
+    )
 
     LaunchedEffect(isJoiningMission) {
         if (!isJoiningMission) return@LaunchedEffect
@@ -315,10 +347,54 @@ private fun BackendMissionDetailContent(
             return@LaunchedEffect
         }
 
+        if (connectionMode == ConnectionUiMode.Offline) {
+            when (val queued = missionRepository.queuePendingMissionSubmission(
+                missionId = missionId,
+                proofText = explanation.trim(),
+                quantity = if (currentMission.type == "QUANTITY_BASED") quantityValue else null,
+                bytes = photo.bytes,
+                mimeType = photo.mimeType,
+                fileName = photo.fileName
+            )) {
+                is AuthResult.Success -> {
+                    submissions = (submissions.filterNot { it.id == queued.value.id } + queued.value)
+                    explanation = ""
+                    quantity = ""
+                    proofPhotoUri = null
+                    proofPhotoBitmap = null
+                    actionMessage = "Saved as Pending Upload. It will sync automatically when internet is available."
+                }
+                is AuthResult.Error -> actionMessage = queued.message
+            }
+            isSubmittingProof = false
+            return@LaunchedEffect
+        }
+
         val upload = when (val result = missionRepository.uploadMissionProof(photo.bytes, photo.mimeType, photo.fileName)) {
             is AuthResult.Success -> result.value
             is AuthResult.Error -> {
-                actionMessage = result.message
+                if (shouldQueueMissionProof(result.message)) {
+                    when (val queued = missionRepository.queuePendingMissionSubmission(
+                        missionId = missionId,
+                        proofText = explanation.trim(),
+                        quantity = if (currentMission.type == "QUANTITY_BASED") quantityValue else null,
+                        bytes = photo.bytes,
+                        mimeType = photo.mimeType,
+                        fileName = photo.fileName
+                    )) {
+                        is AuthResult.Success -> {
+                            submissions = (submissions.filterNot { it.id == queued.value.id } + queued.value)
+                            explanation = ""
+                            quantity = ""
+                            proofPhotoUri = null
+                            proofPhotoBitmap = null
+                            actionMessage = "Saved as Pending Upload. It will sync automatically when internet is available."
+                        }
+                        is AuthResult.Error -> actionMessage = queued.message
+                    }
+                } else {
+                    actionMessage = result.message
+                }
                 isSubmittingProof = false
                 return@LaunchedEffect
             }
@@ -345,7 +421,28 @@ private fun BackendMissionDetailContent(
                 actionMessage = "Proof submitted successfully."
             }
             is AuthResult.Error -> {
-                actionMessage = result.message
+                if (shouldQueueMissionProof(result.message)) {
+                    when (val queued = missionRepository.queuePendingMissionSubmission(
+                        missionId = missionId,
+                        proofText = explanation.trim(),
+                        quantity = if (currentMission.type == "QUANTITY_BASED") quantityValue else null,
+                        bytes = photo.bytes,
+                        mimeType = photo.mimeType,
+                        fileName = photo.fileName
+                    )) {
+                        is AuthResult.Success -> {
+                            submissions = (submissions.filterNot { it.id == queued.value.id } + queued.value)
+                            explanation = ""
+                            quantity = ""
+                            proofPhotoUri = null
+                            proofPhotoBitmap = null
+                            actionMessage = "Saved as Pending Upload. It will sync automatically when internet is available."
+                        }
+                        is AuthResult.Error -> actionMessage = queued.message
+                    }
+                } else {
+                    actionMessage = result.message
+                }
             }
         }
 
@@ -354,7 +451,7 @@ private fun BackendMissionDetailContent(
 }
 
 @Composable
-private fun MissionDetailTopBar(onBack: () -> Unit) {
+private fun MissionDetailTopBar(onBack: () -> Unit, connectionMode: ConnectionUiMode) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 10.dp),
         verticalAlignment = Alignment.CenterVertically
@@ -367,8 +464,9 @@ private fun MissionDetailTopBar(onBack: () -> Unit) {
             color = MissionPrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.padding(start = 4.dp)
+            modifier = Modifier.padding(start = 4.dp).weight(1f)
         )
+        ConnectionModeChip(connectionMode)
     }
 }
 
@@ -611,11 +709,16 @@ private fun SubmissionStatusRow(status: String) {
     val normalized = status.uppercase(Locale.ENGLISH)
     val color = when (normalized) {
         "APPROVED" -> MissionPrimary
+        "PENDING_UPLOAD", "UPLOADING" -> Color(0xFFC17800)
+        "FAILED_UPLOAD" -> Color(0xFFB02500)
         "PENDING_REVIEW" -> Color(0xFFC17800)
         "REJECTED" -> Color(0xFFB02500)
         else -> MissionMuted
     }
     val label = when (normalized) {
+        "PENDING_UPLOAD" -> "PENDING UPLOAD"
+        "UPLOADING" -> "UPLOADING"
+        "FAILED_UPLOAD" -> "PENDING UPLOAD"
         "PENDING_REVIEW" -> "UNDER REVIEW"
         else -> normalized.replace('_', ' ')
     }
@@ -712,32 +815,25 @@ private fun ProofRequiredCard(
     }
 
     if (showPhotoSourceDialog) {
-        AlertDialog(
-            onDismissRequest = { showPhotoSourceDialog = false },
-            title = { Text("Mission Proof") },
-            text = { Text("Upload an existing photo or take a new photo as proof for this mission.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showPhotoSourceDialog = false
-                        galleryLauncher.launch("image/*")
-                    }
-                ) {
-                    Text("Upload Photo")
-                }
+        AppPopOutDialog(
+            message = AppPopOutMessage(
+                title = "Mission Proof",
+                message = "Upload an existing photo or take a new photo as proof for this mission.",
+                type = PopOutMessageType.Info,
+                buttonText = "Upload Photo",
+                secondaryButtonText = "Take Photo"
+            ),
+            onDismiss = { showPhotoSourceDialog = false },
+            onPrimary = {
+                showPhotoSourceDialog = false
+                galleryLauncher.launch("image/*")
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showPhotoSourceDialog = false
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                            cameraLauncher.launch(null)
-                        } else {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    }
-                ) {
-                    Text("Take Photo")
+            onSecondary = {
+                showPhotoSourceDialog = false
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    cameraLauncher.launch(null)
+                } else {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                 }
             }
         )
@@ -1014,7 +1110,7 @@ private fun List<BackendSubmission>.latestForMissionWithStatuses(
     missionId: String,
     statuses: Set<String>
 ): BackendSubmission? {
-    return filter { it.missionId == missionId && it.status in statuses }
+    return filter { it.missionId == missionId && it.status.uppercase(Locale.ENGLISH) in statuses }
         .maxByOrNull { it.submittedAt.orEmpty() }
 }
 
@@ -1083,7 +1179,9 @@ private fun selectedProofPhotoBytes(
             "image/webp" -> "webp"
             else -> "jpg"
         }
-        val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() } ?: return null
+        val bytes = runCatching {
+            context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+        }.getOrNull() ?: return null
         return ProofPhotoPayload(
             bytes = bytes,
             mimeType = mimeType,
@@ -1103,6 +1201,13 @@ private fun normalizeLocalBlobUrl(url: String?, backendBaseUrl: String): String?
         .replace("http://localhost:10000", "http://$backendHost:10000")
         .replace("http://127.0.0.1:10000", "http://$backendHost:10000")
         .replace("http://10.0.2.2:10000", "http://$backendHost:10000")
+}
+
+private fun shouldQueueMissionProof(errorMessage: String): Boolean {
+    return errorMessage.startsWith("Connection Error", ignoreCase = true) ||
+        errorMessage.contains("timed out", ignoreCase = true) ||
+        errorMessage.contains("took too long", ignoreCase = true) ||
+        errorMessage.contains("could not reach", ignoreCase = true)
 }
 
 private fun formatMissionDate(value: String): String {

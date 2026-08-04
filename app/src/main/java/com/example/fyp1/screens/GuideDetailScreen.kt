@@ -36,10 +36,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -60,6 +57,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fyp1.R
+import com.example.fyp1.components.FloatingBottomNavigationScaffold
 
 private val DetailBackground = Color(0xFFF8FAF8)
 private val DetailGreen = Color(0xFF006B1B)
@@ -110,13 +108,18 @@ private enum class GuideVisual {
 fun GuideDetailScreen(navController: NavController, material: String) {
     val detail = remember(material) { materialDetails(material) }
 
-    Scaffold(containerColor = DetailBackground) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding())
                 .background(DetailBackground),
-            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 0.dp, bottom = 32.dp),
+            contentPadding = PaddingValues(
+                start = 16.dp,
+                end = 16.dp,
+                top = 0.dp,
+                bottom = padding.calculateBottomPadding()
+            ),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item { DetailRewardStyleHeader(title = "${detail.name} Guide", onBack = { navController.popBackStack() }) }

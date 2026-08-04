@@ -48,6 +48,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -66,11 +67,12 @@ private enum class RecyclingHistoryTab(val label: String) {
 
 @Composable
 fun RecyclingHistoryScreen(navController: NavController, viewModel: MainViewModel) {
+    val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     var showAll by remember { mutableStateOf(false) }
     val tabs = listOf(RecyclingHistoryTab.All, RecyclingHistoryTab.Pending, RecyclingHistoryTab.Past)
 
-    LaunchedEffect(Unit) { viewModel.fetchUserData() }
+    LaunchedEffect(Unit) { viewModel.fetchUserData(context) }
 
     val logs = viewModel.recyclingHistory
     val filteredLogs = when (tabs[selectedTab]) {

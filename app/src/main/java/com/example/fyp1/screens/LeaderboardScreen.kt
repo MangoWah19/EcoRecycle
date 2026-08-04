@@ -123,12 +123,13 @@ import com.example.fyp1.components.*
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun LeaderboardScreen(navController: NavController, viewModel: MainViewModel) {
+    val context = LocalContext.current
     val tabs = listOf("Daily", "Weekly", "All-Time")
     val timeframeKeys = listOf("daily", "weekly", "all_time")
     var selectedTab by remember { mutableIntStateOf(2) }
 
     LaunchedEffect(selectedTab) {
-        viewModel.fetchLeaderboard(timeframeKeys[selectedTab])
+        viewModel.fetchLeaderboard(timeframeKeys[selectedTab], context)
     }
 
     FloatingBottomNavigationScaffold(navController = navController) { padding ->

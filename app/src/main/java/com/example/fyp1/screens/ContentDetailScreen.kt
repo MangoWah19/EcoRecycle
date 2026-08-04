@@ -1,5 +1,6 @@
 package com.example.fyp1.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -29,6 +30,7 @@ import androidx.compose.material.icons.filled.Eco
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Surface
@@ -38,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,17 +56,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.fyp1.api.AuthRepository
 import com.example.fyp1.api.AuthResult
 import com.example.fyp1.api.BackendContent
 import com.example.fyp1.api.BackendContentBlock
 import com.example.fyp1.api.ContentRepository
 import com.example.fyp1.api.ContentSelectionCache
+import com.example.fyp1.api.SavedContentRepository
+import com.example.fyp1.components.AppPopOutDialog
+import com.example.fyp1.components.AppPopOutMessage
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
+import com.example.fyp1.components.PopOutMessageType
+import com.example.fyp1.offline.ConnectionModeChip
+import com.example.fyp1.offline.ConnectionUiMode
+import com.example.fyp1.offline.rememberConnectionUiMode
+import kotlinx.coroutines.launch
 
 @Composable
 fun ContentDetailScreen(navController: NavController, contentId: String) {
     val context = LocalContext.current
+    val connectionMode = rememberConnectionUiMode()
     val repository = remember { ContentRepository(context) }
+    val savedContentRepository = remember { SavedContentRepository(context) }
+    val authRepository = remember { AuthRepository(context) }
+    val scope = rememberCoroutineScope()
     val cachedContent = remember(contentId) {
         ContentSelectionCache.selectedContent?.takeIf { it.id == contentId }
     }
@@ -71,6 +87,8 @@ fun ContentDetailScreen(navController: NavController, contentId: String) {
     var isLoading by remember(contentId) { mutableStateOf(cachedContent == null) }
     var errorMessage by remember(contentId) { mutableStateOf<String?>(null) }
     var expanded by remember(contentId) { mutableStateOf(false) }
+    var popOutMessage by remember(contentId) { mutableStateOf<AppPopOutMessage?>(null) }
+    var isSaved by remember(contentId) { mutableStateOf(false) }
 
     LaunchedEffect(contentId) {
         isLoading = content == null
@@ -79,6 +97,7 @@ fun ContentDetailScreen(navController: NavController, contentId: String) {
             is AuthResult.Success -> content = result.value
             is AuthResult.Error -> errorMessage = result.message
         }
+        isSaved = savedContentRepository.isSaved(contentId)
         isLoading = false
     }
 
@@ -93,7 +112,17 @@ fun ContentDetailScreen(navController: NavController, contentId: String) {
         ) {
             item {
                 ContentDetailTopBar(
-                    onBack = { navController.popBackStack() }
+                    connectionMode = connectionMode,
+                    isSaved = isSaved,
+                    onBack = { navController.popBackStack() },
+                    onBookmarkClick = {
+                        val currentContent = content
+                        if (currentContent != null) {
+                            scope.launch {
+                                isSaved = savedContentRepository.toggle(currentContent)
+                            }
+                        }
+                    }
                 )
             }
 
@@ -156,9 +185,28 @@ fun ContentDetailScreen(navController: NavController, contentId: String) {
                 item {
                     TakeQuizCallout(
                         modifier = Modifier.padding(horizontal = 18.dp),
+                        isOffline = connectionMode == ConnectionUiMode.Offline,
                         onTakeQuiz = {
-                            ContentSelectionCache.selectedContent = currentContent
-                            navController.navigate("quiz_attempt/${currentContent.id}")
+                            when {
+                                !authRepository.isLoggedIn() -> {
+                                    popOutMessage = AppPopOutMessage(
+                                        title = "Login Required",
+                                        message = "Please log in before taking quizzes so your quiz result can be saved.",
+                                        type = PopOutMessageType.Info
+                                    )
+                                }
+                                connectionMode == ConnectionUiMode.Offline -> {
+                                    popOutMessage = AppPopOutMessage(
+                                        title = "Internet Required",
+                                        message = "Please reconnect to the internet before taking this quiz. You can still read cached learning content while offline.",
+                                        type = PopOutMessageType.Info
+                                    )
+                                }
+                                else -> {
+                                    ContentSelectionCache.selectedContent = currentContent
+                                    navController.navigate("quiz_attempt/${currentContent.id}")
+                                }
+                            }
                         }
                     )
                 }
@@ -166,23 +214,52 @@ fun ContentDetailScreen(navController: NavController, contentId: String) {
             }
         }
     }
+
+    AppPopOutDialog(
+        message = popOutMessage,
+        onDismiss = { popOutMessage = null }
+    )
 }
 
 @Composable
-private fun ContentDetailTopBar(onBack: () -> Unit) {
+private fun ContentDetailTopBar(
+    connectionMode: ConnectionUiMode,
+    isSaved: Boolean,
+    onBack: () -> Unit,
+    onBookmarkClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(horizontal = 8.dp, vertical = 10.dp),
-        horizontalArrangement = Arrangement.SpaceBetween,
+            .padding(top = 10.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = onBack) {
+        IconButton(onClick = onBack, modifier = Modifier.size(42.dp)) {
             Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Back", tint = ArticlePrimary)
         }
-        Text("Eco-Recycle", color = ArticlePrimary, fontSize = 15.sp, fontWeight = FontWeight.ExtraBold)
-        Surface(modifier = Modifier.size(40.dp), shape = CircleShape, color = ArticleSoftSurface) {
-            Icon(Icons.Default.Bookmark, contentDescription = "Bookmark", tint = ArticlePrimary, modifier = Modifier.padding(9.dp))
+        Text(
+            "Learning Guide",
+            color = ArticlePrimary,
+            fontSize = 18.sp,
+            fontWeight = FontWeight.ExtraBold,
+            modifier = Modifier.padding(start = 4.dp).weight(1f)
+        )
+        ConnectionModeChip(connectionMode, modifier = Modifier.padding(end = 8.dp))
+        Surface(
+            modifier = Modifier
+                .padding(end = 8.dp)
+                .size(40.dp)
+                .clickable(onClick = onBookmarkClick),
+            shape = CircleShape,
+            color = if (isSaved) ArticlePrimary else Color.White,
+            border = if (isSaved) null else BorderStroke(1.5.dp, ArticlePrimary)
+        ) {
+            Icon(
+                imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
+                contentDescription = if (isSaved) "Remove saved content" else "Save content",
+                tint = if (isSaved) Color.White else ArticlePrimary,
+                modifier = Modifier.padding(9.dp)
+            )
         }
     }
 }
@@ -191,26 +268,13 @@ private fun ContentDetailTopBar(onBack: () -> Unit) {
 private fun ContentHero(content: BackendContent) {
     val imageRequest = rememberEcoImageRequest(content.imageUrl)
     Box(modifier = Modifier.fillMaxWidth().height(310.dp)) {
-        if (imageRequest != null) {
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = content.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Brush.linearGradient(listOf(Color(0xFF245F35), Color(0xFF008A95))))
-            )
-            Icon(
-                Icons.AutoMirrored.Filled.MenuBook,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.34f),
-                modifier = Modifier.align(Alignment.Center).size(96.dp)
-            )
-        }
+        EcoLoadingImage(
+            model = imageRequest,
+            contentDescription = content.title,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            fallbackIcon = Icons.AutoMirrored.Filled.MenuBook
+        )
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -325,20 +389,13 @@ private fun ArticleContentBlock(modifier: Modifier = Modifier, block: BackendCon
                     .height(190.dp)
                     .clip(RoundedCornerShape(22.dp))
             ) {
-                if (imageRequest != null) {
-                    AsyncImage(
-                        model = imageRequest,
-                        contentDescription = block.alt,
-                        modifier = Modifier.fillMaxSize(),
-                        contentScale = ContentScale.Crop
-                    )
-                } else {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(Brush.linearGradient(listOf(Color(0xFF245F35), Color(0xFF008A95))))
-                    )
-                }
+                EcoLoadingImage(
+                    model = imageRequest,
+                    contentDescription = block.alt,
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop,
+                    fallbackIcon = Icons.AutoMirrored.Filled.MenuBook
+                )
             }
         }
         else -> {
@@ -380,7 +437,7 @@ private fun ReadMoreButton(modifier: Modifier = Modifier, onClick: () -> Unit) {
 }
 
 @Composable
-private fun TakeQuizCallout(modifier: Modifier = Modifier, onTakeQuiz: () -> Unit) {
+private fun TakeQuizCallout(modifier: Modifier = Modifier, isOffline: Boolean, onTakeQuiz: () -> Unit) {
     Surface(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -413,7 +470,7 @@ private fun TakeQuizCallout(modifier: Modifier = Modifier, onTakeQuiz: () -> Uni
                     .clip(CircleShape)
                     .clickable(onClick = onTakeQuiz),
                 shape = CircleShape,
-                color = ArticlePrimary
+                color = if (isOffline) Color(0xFFB8C0BC) else ArticlePrimary
             ) {
                 Row(horizontalArrangement = Arrangement.Center, verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Quiz, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))

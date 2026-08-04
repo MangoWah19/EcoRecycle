@@ -330,7 +330,7 @@ class AntiGamingEngine(private val supabaseClient: Any) {
 
     private suspend fun getRewardCooldownInfo(
         userId: String,
-        rewardId: Int
+        rewardId: String
     ): CooldownInfo {
         return try {
             val cooldown = supabase.postgrest["redemption_cooldowns"]
@@ -368,7 +368,7 @@ class AntiGamingEngine(private val supabaseClient: Any) {
         }
     }
 
-    private suspend fun getRewardInfo(rewardId: Int): Reward? {
+    private suspend fun getRewardInfo(rewardId: String): Reward? {
         return try {
             supabase.postgrest["rewards_catalog"]
                 .select { filter { eq("id", rewardId) } }
@@ -416,12 +416,12 @@ class AntiGamingEngine(private val supabaseClient: Any) {
     }
 
     // Called from redeemItem 闂?checks if cooldown is active before allowing redemption
-    suspend fun checkRedemptionCooldown(userId: String, rewardId: Int): CooldownInfo {
+    suspend fun checkRedemptionCooldown(userId: String, rewardId: String): CooldownInfo {
         return getRewardCooldownInfo(userId, rewardId)
     }
 
     // Called from redeemItem 闂?saves the timestamp so cooldown starts counting
-    suspend fun recordCooldownAfterRedemption(userId: String, rewardId: Int) {
+    suspend fun recordCooldownAfterRedemption(userId: String, rewardId: String) {
         try {
             val existing = supabase.postgrest["redemption_cooldowns"]
                 .select { filter { eq("user_id", userId); eq("reward_id", rewardId) } }
@@ -500,7 +500,7 @@ class AntiGamingEngine(private val supabaseClient: Any) {
         } catch (e: Exception) { /* Silent fail */ }
     }
 
-    private suspend fun isRareReward(rewardId: Int): Boolean {
+    private suspend fun isRareReward(rewardId: String): Boolean {
         return try {
             val reward = getRewardInfo(rewardId)
             reward?.points_required?.let { it > 500 } ?: false

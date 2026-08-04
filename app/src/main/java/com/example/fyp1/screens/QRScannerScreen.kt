@@ -3,6 +3,7 @@ package com.example.fyp1.screens
 import android.Manifest
 import android.annotation.SuppressLint
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -33,6 +34,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.FlashlightOff
 import androidx.compose.material.icons.filled.FlashlightOn
+import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
@@ -46,6 +49,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,33 +67,132 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.navigation.NavController
+import com.example.fyp1.MainViewModel
+import com.example.fyp1.api.AuthResult
+import com.example.fyp1.components.AppPopOutDialog
+import com.example.fyp1.components.AppPopOutMessage
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
+import com.example.fyp1.components.PopOutMessageType
+import com.google.gson.JsonParser
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import kotlinx.coroutines.launch
 import java.util.concurrent.Executors
 
 @Composable
-fun QRScannerScreen(navController: NavController) {
+fun QRScannerScreen(navController: NavController, viewModel: MainViewModel) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val scanner = remember {
+        BarcodeScanning.getClient(
+            BarcodeScannerOptions.Builder()
+                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
+                .build()
+        )
+    }
     var hasCameraPermission by remember {
         mutableStateOf(
             ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
         )
     }
+    var isProcessingGallery by remember { mutableStateOf(false) }
+    var isClaimingQr by remember { mutableStateOf(false) }
+    var scanPaused by remember { mutableStateOf(false) }
+    var exitAfterDialog by remember { mutableStateOf(false) }
+    var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
     ) { granted ->
         hasCameraPermission = granted
         if (!granted) {
-            Toast.makeText(context, "Camera permission is required to scan QR codes.", Toast.LENGTH_LONG).show()
+            popOutMessage = AppPopOutMessage(
+                title = "Camera Permission Needed",
+                message = "Please allow camera access so EcoRecycle can scan QR codes.",
+                type = PopOutMessageType.Info
+            )
+        }
+    }
+    val handleScanResult: (String) -> Unit = { value ->
+        if (scanPaused || isClaimingQr) {
+            Unit
+        } else if (!isEcoRecycleRecyclingQr(value)) {
+            scanPaused = true
+            popOutMessage = AppPopOutMessage(
+                title = "Invalid QR code",
+                message = "This QR code is not an EcoRecycle recycling deposit QR. Please scan the QR generated from the admin page.",
+                type = PopOutMessageType.Error
+            )
+        } else {
+            scanPaused = true
+            isClaimingQr = true
+            popOutMessage = AppPopOutMessage(
+                title = "Checking QR",
+                message = "Please wait while the backend verifies this recycling deposit QR.",
+                type = PopOutMessageType.Info
+            )
+            scope.launch {
+                when (val result = viewModel.claimRecyclingQrPayload(value, context)) {
+                    is AuthResult.Success -> {
+                        val log = result.value
+                        exitAfterDialog = true
+                        popOutMessage = AppPopOutMessage(
+                            title = "QR deposit submitted",
+                            message = "${log.quantity} kg of ${log.material_type} is now pending admin review. Points will be awarded once approved.",
+                            type = PopOutMessageType.Success,
+                            buttonText = "Back to Submit"
+                        )
+                    }
+                    is AuthResult.Error -> {
+                        exitAfterDialog = false
+                        popOutMessage = AppPopOutMessage(
+                            title = qrErrorTitle(result.message),
+                            message = result.message,
+                            type = PopOutMessageType.Error,
+                            buttonText = "Scan Again"
+                        )
+                    }
+                }
+                isClaimingQr = false
+            }
+        }
+    }
+    val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri != null) {
+            isProcessingGallery = true
+            scanQrFromGallery(
+                uri = uri,
+                context = context,
+                scanner = scanner,
+                onScanned = { value ->
+                    isProcessingGallery = false
+                    handleScanResult(value)
+                },
+                onNotFound = {
+                    isProcessingGallery = false
+                    scanPaused = true
+                    popOutMessage = AppPopOutMessage(
+                        title = "No valid QR found",
+                        message = "This image does not contain an EcoRecycle recycling QR. Please choose the QR generated from the admin page.",
+                        type = PopOutMessageType.Error,
+                        buttonText = "Scan Again"
+                    )
+                }
+            )
         }
     }
 
     LaunchedEffect(Unit) {
         if (!hasCameraPermission) {
             permissionLauncher.launch(Manifest.permission.CAMERA)
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            scanner.close()
         }
     }
 
@@ -100,13 +203,39 @@ fun QRScannerScreen(navController: NavController) {
                 .background(Color.Black)
         ) {
             if (hasCameraPermission) {
-                QRScannerCameraPreview(navController = navController)
+                QRScannerCameraPreview(
+                    scanner = scanner,
+                    scanPaused = scanPaused || isClaimingQr || popOutMessage != null,
+                    onQrScanned = handleScanResult,
+                    onCameraError = {
+                        popOutMessage = AppPopOutMessage(
+                            title = "Camera Unavailable",
+                            message = "We could not open the camera. Please check camera permission or try again.",
+                            type = PopOutMessageType.Error
+                        )
+                    }
+                )
             } else {
                 PermissionPrompt(onRequestPermission = { permissionLauncher.launch(Manifest.permission.CAMERA) })
             }
 
             ScannerOverlay(
+                isProcessingGallery = isProcessingGallery || isClaimingQr,
+                onPickGallery = { galleryLauncher.launch("image/*") },
                 onBack = { navController.popBackStack() }
+            )
+
+            AppPopOutDialog(
+                message = popOutMessage,
+                onDismiss = {
+                    popOutMessage = null
+                    if (exitAfterDialog) {
+                        exitAfterDialog = false
+                        navController.popBackStack()
+                    } else {
+                        scanPaused = false
+                    }
+                }
             )
         }
     }
@@ -115,24 +244,20 @@ fun QRScannerScreen(navController: NavController) {
 @SuppressLint("UnsafeOptInUsageError")
 @OptIn(ExperimentalGetImage::class)
 @Composable
-private fun QRScannerCameraPreview(navController: NavController) {
+private fun QRScannerCameraPreview(
+    scanner: BarcodeScanner,
+    scanPaused: Boolean,
+    onQrScanned: (String) -> Unit,
+    onCameraError: () -> Unit
+) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
-    val scanner = remember {
-        BarcodeScanning.getClient(
-            BarcodeScannerOptions.Builder()
-                .setBarcodeFormats(Barcode.FORMAT_QR_CODE)
-                .build()
-        )
-    }
     var camera by remember { mutableStateOf<Camera?>(null) }
     var torchOn by remember { mutableStateOf(false) }
-    var scanned by remember { mutableStateOf(false) }
 
     DisposableEffect(Unit) {
         onDispose {
-            scanner.close()
             executor.shutdown()
         }
     }
@@ -157,15 +282,9 @@ private fun QRScannerCameraPreview(navController: NavController) {
                             processQrImage(
                                 imageProxy = imageProxy,
                                 scanner = scanner,
-                                alreadyScanned = scanned,
+                                alreadyScanned = scanPaused,
                                 onScanned = { value ->
-                                    scanned = true
-                                    navController.previousBackStackEntry
-                                        ?.savedStateHandle
-                                        ?.set("qr_scan_result", value)
-                                    Toast.makeText(context, "Scanned: $value", Toast.LENGTH_SHORT).show()
-                                    // TODO: Use scanned station identifier when deposit flow supports it.
-                                    navController.popBackStack()
+                                    onQrScanned(value)
                                 }
                             )
                         }
@@ -180,7 +299,7 @@ private fun QRScannerCameraPreview(navController: NavController) {
                         analysis
                     )
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Unable to open camera.", Toast.LENGTH_LONG).show()
+                    onCameraError()
                 }
             }, ContextCompat.getMainExecutor(viewContext))
             previewView
@@ -245,8 +364,66 @@ private fun processQrImage(
         }
 }
 
+private fun scanQrFromGallery(
+    uri: Uri,
+    context: android.content.Context,
+    scanner: BarcodeScanner,
+    onScanned: (String) -> Unit,
+    onNotFound: () -> Unit
+) {
+    val image = runCatching { InputImage.fromFilePath(context, uri) }.getOrNull()
+    if (image == null) {
+        onNotFound()
+        return
+    }
+
+    scanner.process(image)
+        .addOnSuccessListener { barcodes ->
+            val value = barcodes
+                .firstOrNull { it.format == Barcode.FORMAT_QR_CODE && !it.rawValue.isNullOrBlank() }
+                ?.rawValue
+            if (!value.isNullOrBlank() && isEcoRecycleRecyclingQr(value)) {
+                onScanned(value)
+            } else {
+                onNotFound()
+            }
+        }
+        .addOnFailureListener {
+            onNotFound()
+        }
+}
+
+private fun isEcoRecycleRecyclingQr(value: String): Boolean {
+    return runCatching {
+        val root = JsonParser.parseString(value).asJsonObject
+        val payload = root.getAsJsonObject("payload") ?: return false
+        val signature = root.get("signature")?.asString
+        payload.get("type")?.asString == "recycling-deposit" &&
+            !payload.get("qrId")?.asString.isNullOrBlank() &&
+            !payload.get("nonce")?.asString.isNullOrBlank() &&
+            !payload.get("materialType")?.asString.isNullOrBlank() &&
+            payload.get("estimatedWeightKg") != null &&
+            !payload.get("expiresAt")?.asString.isNullOrBlank() &&
+            !signature.isNullOrBlank()
+    }.getOrDefault(false)
+}
+
+private fun qrErrorTitle(message: String): String {
+    val lower = message.lowercase()
+    return when {
+        "expired" in lower -> "QR expired"
+        "already used" in lower || "invalid" in lower || "replay" in lower -> "QR cannot be used"
+        "permission" in lower || "log in" in lower -> "Login required"
+        else -> "QR could not be used"
+    }
+}
+
 @Composable
-private fun ScannerOverlay(onBack: () -> Unit) {
+private fun ScannerOverlay(
+    isProcessingGallery: Boolean,
+    onPickGallery: () -> Unit,
+    onBack: () -> Unit
+) {
     Box(modifier = Modifier.fillMaxSize()) {
         Row(
             modifier = Modifier
@@ -304,6 +481,38 @@ private fun ScannerOverlay(onBack: () -> Unit) {
                 textAlign = TextAlign.Center,
                 modifier = Modifier
                     .padding(horizontal = 46.dp, vertical = 8.dp)
+            )
+        }
+
+        Button(
+            onClick = onPickGallery,
+            enabled = !isProcessingGallery,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .padding(bottom = 176.dp),
+            shape = CircleShape,
+            colors = ButtonDefaults.buttonColors(containerColor = Color.White.copy(alpha = 0.88f))
+        ) {
+            if (isProcessingGallery) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(18.dp),
+                    color = Color(0xFF006B1B),
+                    strokeWidth = 2.dp
+                )
+            } else {
+                Icon(
+                    Icons.Default.PhotoLibrary,
+                    contentDescription = null,
+                    tint = Color(0xFF006B1B),
+                modifier = Modifier.size(18.dp)
+                )
+            }
+            Spacer(Modifier.size(8.dp))
+            Text(
+                text = if (isProcessingGallery) "Checking Image" else "Scan from Gallery",
+                color = Color(0xFF006B1B),
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold
             )
         }
     }

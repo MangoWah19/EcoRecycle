@@ -2,6 +2,8 @@ package com.example.fyp1
 
 import android.content.Context
 import android.content.Intent
+import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -117,12 +119,19 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
+import java.io.ByteArrayOutputStream
 import com.example.fyp1.api.AuthRepository
 import com.example.fyp1.api.AuthResult
 import com.example.fyp1.api.AuthUser
+import com.example.fyp1.api.LeaderboardRepository
 import com.example.fyp1.api.PointsRepository
+import com.example.fyp1.api.RecyclingRepository
+import com.example.fyp1.api.RewardRepository
+import com.example.fyp1.components.AppPopOutMessage
+import com.example.fyp1.components.PopOutMessageType
 import com.example.fyp1.engines.*
 import com.example.fyp1.navigation.AppNavigation
+import com.example.fyp1.offline.isNetworkAvailable
 
 
 // ============================================git
@@ -134,6 +143,10 @@ const val DEFAULT_CLAIM_EXPIRY_DAYS = 30
 const val MIN_SUBMISSION_INTERVAL = 60 // 1 minute in seconds
 const val MAX_DAILY_POINTS = 1000
 const val MAX_SUBMISSIONS_PER_HOUR = 10
+private const val HOME_CACHE_PREFS = "home_summary_cache"
+private const val KEY_HOME_USER_NAME = "home_user_name"
+private const val KEY_HOME_POINTS = "home_points"
+private const val KEY_HOME_LIFETIME_POINTS = "home_lifetime_points"
 
 
 val POINT_RATES = mapOf("Plastic" to 50, "Paper" to 20, "Glass" to 30, "Metal" to 60)
@@ -164,11 +177,18 @@ val pointsLedger = PointsLedger(supabase)
 // VIEWMODEL
 // ============================================
 
+private data class RecyclingProofPayload(
+    val bytes: ByteArray,
+    val mimeType: String,
+    val fileName: String
+)
+
 class MainViewModel : ViewModel() {
     var userPoints by mutableIntStateOf(0)
     var userName by mutableStateOf("Loading...")
     var isRefreshing by mutableStateOf(false)
     var backendUser by mutableStateOf<AuthUser?>(null)
+    var popOutMessage by mutableStateOf<AppPopOutMessage?>(null)
 
     val leaderboard = mutableStateListOf<LeaderboardEntry>()
     val leaderboardWithRank = mutableStateListOf<LeaderboardEntryWithRank>()
@@ -196,9 +216,25 @@ class MainViewModel : ViewModel() {
         userName = user.name
     }
 
-    fun applyBackendPoints(points: Int) {
+    fun applyBackendPoints(points: Int, lifetime: Int = points) {
         userPoints = points
-        lifetimePoints = points
+        lifetimePoints = lifetime
+    }
+
+    fun loadCachedHomeSummary(context: Context) {
+        val appContext = context.applicationContext
+        val cachedUser = AuthRepository(appContext).getSavedUser()
+        if (cachedUser != null) {
+            applyBackendUser(cachedUser)
+        }
+
+        val prefs = appContext.getSharedPreferences(HOME_CACHE_PREFS, Context.MODE_PRIVATE)
+        val cachedName = prefs.getString(KEY_HOME_USER_NAME, null)
+        if (!cachedName.isNullOrBlank()) {
+            userName = cachedName
+        }
+        userPoints = prefs.getInt(KEY_HOME_POINTS, userPoints)
+        lifetimePoints = prefs.getInt(KEY_HOME_LIFETIME_POINTS, lifetimePoints)
     }
 
     fun refreshBackendUserSummary(context: Context) {
@@ -208,9 +244,9 @@ class MainViewModel : ViewModel() {
     }
 
     fun refreshHomeProfileData(context: Context) {
+        loadCachedHomeSummary(context)
         viewModelScope.launch {
-            fetchUserDataNow()
-            refreshBackendUserSummaryNow(context)
+            fetchUserDataNow(context.applicationContext)
         }
     }
 
@@ -220,9 +256,9 @@ class MainViewModel : ViewModel() {
         userPoints = 0
     }
 
-    fun fetchUserData() {
+    fun fetchUserData(context: Context? = null) {
         viewModelScope.launch {
-            fetchUserDataNow()
+            fetchUserDataNow(context?.applicationContext)
         }
     }
 
@@ -232,19 +268,106 @@ class MainViewModel : ViewModel() {
         val pointsRepository = PointsRepository(appContext)
 
         when (val result = authRepository.me()) {
-            is AuthResult.Success -> applyBackendUser(result.value)
+            is AuthResult.Success -> {
+                applyBackendUser(result.value)
+                cacheBackendUser(appContext, result.value)
+            }
             is AuthResult.Error -> Unit
         }
 
         when (val result = pointsRepository.getMyPoints()) {
-            is AuthResult.Success -> applyBackendPoints(result.value.total)
+            is AuthResult.Success -> {
+                applyBackendPoints(result.value.total, result.value.lifetimeTotal)
+                cacheBackendPoints(appContext, result.value.total, result.value.lifetimeTotal)
+            }
             is AuthResult.Error -> Unit
         }
     }
 
-    private suspend fun fetchUserDataNow() {
+    private suspend fun fetchBackendUserDataNow(context: Context): Boolean {
+        val appContext = context.applicationContext
+        val authRepository = AuthRepository(appContext)
+        if (!authRepository.isLoggedIn()) {
+            return false
+        }
+
+        val pointsRepository = PointsRepository(appContext)
+        val rewardRepository = RewardRepository(appContext)
+        val recyclingRepository = RecyclingRepository(appContext)
+
+        when (val result = authRepository.me()) {
+            is AuthResult.Success -> {
+                applyBackendUser(result.value)
+                cacheBackendUser(appContext, result.value)
+            }
+            is AuthResult.Error -> {
+                loadCachedHomeSummary(appContext)
+                return true
+            }
+        }
+
+        when (val result = pointsRepository.getMyPoints()) {
+            is AuthResult.Success -> {
+                applyBackendPoints(result.value.total, result.value.lifetimeTotal)
+                cacheBackendPoints(appContext, result.value.total, result.value.lifetimeTotal)
+            }
+            is AuthResult.Error -> Unit
+        }
+
+        when (val result = rewardRepository.getRewards()) {
+            is AuthResult.Success -> {
+                rewardsCatalog.clear()
+                rewardsCatalog.addAll(result.value)
+            }
+            is AuthResult.Error -> Unit
+        }
+
+        when (val result = rewardRepository.getMyRedemptions()) {
+            is AuthResult.Success -> {
+                redemptionHistory.clear()
+                redemptionHistory.addAll(result.value)
+                totalRedemptions = result.value.size
+            }
+            is AuthResult.Error -> Unit
+        }
+
+        when (val result = recyclingRepository.getMySubmissions()) {
+            is AuthResult.Success -> {
+                recyclingHistory.clear()
+                recyclingHistory.addAll(result.value)
+
+                val approvedLogs = result.value.filter { it.status == "Approved" }
+                plasticKg = approvedLogs.filter { it.material_type == "Plastic" }.sumOf { it.quantity }.toFloat()
+                paperKg = approvedLogs.filter { it.material_type == "Paper" }.sumOf { it.quantity }.toFloat()
+                glassKg = approvedLogs.filter { it.material_type == "Glass" }.sumOf { it.quantity }.toFloat()
+                metalKg = approvedLogs.filter { it.material_type == "Metal" }.sumOf { it.quantity }.toFloat()
+
+                val sevenDaysAgo = Instant.now().minusSeconds(7 * 24 * 3600).toString()
+                val recentLogs = approvedLogs.filter {
+                    it.created_at != null && it.created_at >= sevenDaysAgo
+                }
+                streakDays = recentLogs.mapNotNull { it.created_at?.take(10) }.toSet().size
+            }
+            is AuthResult.Error -> Unit
+        }
+
+        return true
+    }
+
+    private suspend fun fetchUserDataNow(context: Context? = null) {
         isRefreshing = true
         try {
+            if (context != null) {
+                loadCachedHomeSummary(context)
+                if (!context.isNetworkAvailable()) {
+                    return
+                }
+            }
+
+            if (context != null && fetchBackendUserDataNow(context)) {
+                return
+            }
+
             val user = supabase.auth.currentUserOrNull()
             if (user == null) {
                 if (backendUser == null) {
@@ -340,23 +463,48 @@ class MainViewModel : ViewModel() {
 
         } catch (e: Exception) {
             if (backendUser == null) {
-                userName = "Error Loading"
+                context?.let { loadCachedHomeSummary(it) }
+                if (userName == "Loading...") {
+                    userName = "User"
+                }
             }
         } finally {
             isRefreshing = false
         }
     }
 
+    private fun cacheBackendUser(context: Context, user: AuthUser) {
+        context.applicationContext.getSharedPreferences(HOME_CACHE_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_HOME_USER_NAME, user.name)
+            .apply()
+    }
+
+    private fun cacheBackendPoints(context: Context, points: Int, lifetime: Int) {
+        context.applicationContext.getSharedPreferences(HOME_CACHE_PREFS, Context.MODE_PRIVATE)
+            .edit()
+            .putInt(KEY_HOME_POINTS, points)
+            .putInt(KEY_HOME_LIFETIME_POINTS, lifetime)
+            .apply()
+    }
+
     /**
      * Fetch leaderboard for a specific timeframe: "daily", "weekly", or "all_time".
      * Routes to the correct algorithm in LeaderboardEngine including anti-gaming gate.
      */
-    fun fetchLeaderboard(timeframe: String = "all_time") {
+    fun fetchLeaderboard(timeframe: String = "all_time", context: Context? = null) {
         viewModelScope.launch {
             isLoadingLeaderboard = true
             currentLeaderboardTimeframe = timeframe
             try {
-                val response = leaderboardEngine.getLeaderboard(timeframe, includeRankChange = true)
+                val response = if (context != null && AuthRepository(context.applicationContext).isLoggedIn()) {
+                    when (val result = LeaderboardRepository(context.applicationContext).getLeaderboard(timeframe)) {
+                        is AuthResult.Success -> result.value
+                        is AuthResult.Error -> LeaderboardResponse(timeframe, emptyList(), Instant.now().toString())
+                    }
+                } else {
+                    leaderboardEngine.getLeaderboard(timeframe, includeRankChange = true)
+                }
                 leaderboardWithRank.clear()
                 leaderboardWithRank.addAll(response.entries)
 
@@ -383,131 +531,172 @@ class MainViewModel : ViewModel() {
         userPoints = newAmount
     }
 
+    fun showPopOut(
+        title: String,
+        message: String,
+        type: PopOutMessageType = PopOutMessageType.Info,
+        buttonText: String = "Got it"
+    ) {
+        popOutMessage = AppPopOutMessage(
+            title = title,
+            message = friendlyUserMessage(message),
+            type = type,
+            buttonText = buttonText
+        )
+    }
+
+    fun dismissPopOut() {
+        popOutMessage = null
+    }
+
     fun redeemItem(reward: Reward, quantity: Int = 1, context: android.content.Context) {
         viewModelScope.launch {
-            val user = supabase.auth.currentUserOrNull() ?: return@launch
-
-            // Create a virtual reward with points multiplied by quantity for eligibility check
-            val scaledReward = reward.copy(points_required = reward.points_required * quantity)
-
-            val eligibility = rewardsEngine.checkEligibility(user.id, scaledReward)
-            if (!eligibility.isEligible) {
-                Toast.makeText(context, "Cannot Redeem: ${eligibility.reasons.firstOrNull()}", Toast.LENGTH_LONG).show()
+            val rewardId = reward.id
+            if (rewardId == null) {
+                showPopOut(
+                    title = "Reward Unavailable",
+                    message = "This reward cannot be redeemed right now. Please try another reward.",
+                    type = PopOutMessageType.Error
+                )
                 return@launch
             }
 
-            val cooldownInfo = antiGamingEngine.checkRedemptionCooldown(user.id, reward.id ?: 0)
-            if (!cooldownInfo.canRedeem) {
-                Toast.makeText(context, cooldownInfo.cooldownReason, Toast.LENGTH_LONG).show()
-                return@launch
-            }
-
-            rewardsEngine.expireStaleRedemptions(user.id)
-
-            try {
-                val expiryDate = Instant.now()
-                    .plusSeconds((DEFAULT_CLAIM_EXPIRY_DAYS * 24 * 3600).toLong())
-                    .toString()
-
-                // Insert one redemption row per quantity
-                repeat(quantity) {
-                    val newRedemption = Redemption(
-                        user_id = user.id,
-                        reward_id = reward.id,
-                        item_name = reward.name,
-                        points_spent = reward.points_required,
-                        status = "claimed",
-                        claimed_at = Instant.now().toString(),
-                        expires_at = expiryDate
+            when (val result = RewardRepository(context.applicationContext).redeemReward(rewardId, quantity)) {
+                is AuthResult.Success -> {
+                    fetchUserData(context)
+                    showPopOut(
+                        title = "Reward Reserved",
+                        message = "$quantity x \"${reward.name}\" has been reserved for ${reward.points_required * quantity} points.",
+                        type = PopOutMessageType.Success
                     )
-                    supabase.postgrest["redemptions"].insert(newRedemption)
                 }
-
-                // Deduct total points
-                val spent = pointsLedger.spendPoints(
-                    user.id,
-                    reward.points_required * quantity,
-                    "Reward redemption x$quantity: ${reward.name}"
-                )
-                if (!spent) {
-                    Toast.makeText(context, "Point deduction failed. Please check your balance.", Toast.LENGTH_LONG).show()
-                    return@launch
+                is AuthResult.Error -> {
+                    showPopOut(
+                        title = "Redemption Failed",
+                        message = result.message,
+                        type = PopOutMessageType.Error
+                    )
                 }
-
-                // Decrease stock by quantity
-                supabase.postgrest.rpc(
-                    "decrement_reward_stock",
-                    buildJsonObject {
-                        put("p_reward_id", reward.id!!)
-                        put("p_quantity", quantity)
-                    }
-                )
-
-                antiGamingEngine.recordCooldownAfterRedemption(user.id, reward.id ?: 0)
-                rewardsEngine.checkAndUnlockRedemptionAchievements(user.id)
-                fetchUserData()
-
-                Toast.makeText(
-                    context,
-                    "Redeemed $quantity x \"${reward.name}\" (${reward.points_required * quantity} pts). Expires in $DEFAULT_CLAIM_EXPIRY_DAYS days.",
-                    Toast.LENGTH_LONG
-                ).show()
-            } catch (e: Exception) {
-                Toast.makeText(context, "Redemption Failed: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
             }
         }
     }
-    fun submitRecyclingLog(materialType: String, quantity: Double, context: android.content.Context) {
-        viewModelScope.launch {
-            val user = supabase.auth.currentUserOrNull() ?: return@launch
+    suspend fun submitRecyclingLog(
+        materialType: String,
+        quantity: Double,
+        context: android.content.Context,
+        proofPhotoUri: Uri? = null,
+        proofPhotoBitmap: Bitmap? = null
+    ): Boolean {
+        val appContext = context.applicationContext
+        val repository = RecyclingRepository(appContext)
+        val proofPayload = buildRecyclingProofPayload(appContext, proofPhotoUri, proofPhotoBitmap)
+        if (proofPayload == null) {
+            showPopOut(
+                title = "Photo Required",
+                message = "Please choose or take a clear proof photo before submitting your deposit.",
+                type = PopOutMessageType.Error
+            )
+            return false
+        }
 
-            val validation = antiGamingEngine.validateRecyclingSubmission(user.id, materialType, quantity)
-
-            if (!validation.isValid) {
-                Toast.makeText(
-                    context,
-                    "Submission Blocked: ${validation.issues.firstOrNull() ?: "Unknown error. Please try again."}",
-                    Toast.LENGTH_LONG
-                ).show()
-                return@launch
-            }
-
-            try {
-                supabase.postgrest["profiles"].update(
-                    mapOf("last_log_submission_at" to Instant.now().toString())
-                ) {
-                    filter { eq("id", user.id) }
-                }
-
-                val newLog = RecyclingLog(
-                    user_id = user.id,
-                    material_type = materialType,
-                    quantity = quantity,
-                    status = "Pending",
-                    points_awarded = 0
+        val upload = when (val result = repository.uploadRecyclingProof(
+            proofPayload.bytes,
+            proofPayload.mimeType,
+            proofPayload.fileName
+        )) {
+            is AuthResult.Success -> result.value
+            is AuthResult.Error -> {
+                showPopOut(
+                    title = "Photo Upload Failed",
+                    message = result.message,
+                    type = PopOutMessageType.Error
                 )
-                supabase.postgrest["recycling_logs"].insert(newLog)
+                return false
+            }
+        }
 
-                // Check and unlock recycling-based achievements after each submission
-                antiGamingEngine.checkAndUnlockRecyclingAchievements(user.id)
-
-                // Take leaderboard snapshot daily (silently)
-                leaderboardEngine.createLeaderboardSnapshot()
-
-                Toast.makeText(
-                    context,
-                    "Submitted Successfully! Your ${quantity}kg of $materialType is now pending admin approval. Points will be awarded once approved.",
-                    Toast.LENGTH_LONG
-                ).show()
-            } catch (e: Exception) {
-                Toast.makeText(
-                    context,
-                    "Submission Failed: Could not save your recycling log. Please check your internet connection and try again. (${e.localizedMessage})",
-                    Toast.LENGTH_LONG
-                ).show()
+        return when (val result = repository.createSubmission(
+            materialType = materialType,
+            quantity = quantity,
+            proofImageUrl = upload.fileUrl,
+            uploadId = upload.id
+        )) {
+            is AuthResult.Success -> {
+                fetchUserData(context)
+                showPopOut(
+                    title = "Deposit Submitted",
+                    message = "Your ${quantity}kg of $materialType has been submitted for review. Points will be awarded after approval.",
+                    type = PopOutMessageType.Success
+                )
+                true
+            }
+            is AuthResult.Error -> {
+                showPopOut(
+                    title = "Submission Failed",
+                    message = result.message,
+                    type = PopOutMessageType.Error
+                )
+                false
             }
         }
     }
+
+    suspend fun claimRecyclingQrPayload(
+        rawClaimPayload: String,
+        context: android.content.Context
+    ): AuthResult<RecyclingLog> {
+        val repository = RecyclingRepository(context.applicationContext)
+        val result = repository.claimQr(rawClaimPayload)
+        if (result is AuthResult.Success) {
+            fetchUserData(context)
+        }
+        return result
+    }
+
+    private fun friendlyUserMessage(message: String): String {
+        return message
+            .replace("backend", "EcoRecycle services", ignoreCase = true)
+            .replace("Docker", "the service", ignoreCase = true)
+            .replace("port 5000", "your connection", ignoreCase = true)
+    }
+
+    private fun buildRecyclingProofPayload(
+        context: Context,
+        proofPhotoUri: Uri?,
+        proofPhotoBitmap: Bitmap?
+    ): RecyclingProofPayload? {
+        if (proofPhotoUri != null) {
+            val mimeType = context.contentResolver.getType(proofPhotoUri) ?: "image/jpeg"
+            val bytes = context.contentResolver.openInputStream(proofPhotoUri)?.use { it.readBytes() }
+                ?: return null
+            return RecyclingProofPayload(
+                bytes = bytes,
+                mimeType = mimeType,
+                fileName = "recycling-proof-${System.currentTimeMillis()}.${extensionForMimeType(mimeType)}"
+            )
+        }
+
+        if (proofPhotoBitmap != null) {
+            val bytes = ByteArrayOutputStream().use { output ->
+                proofPhotoBitmap.compress(Bitmap.CompressFormat.JPEG, 90, output)
+                output.toByteArray()
+            }
+            return RecyclingProofPayload(
+                bytes = bytes,
+                mimeType = "image/jpeg",
+                fileName = "recycling-proof-${System.currentTimeMillis()}.jpg"
+            )
+        }
+
+        return null
+    }
+
+    private fun extensionForMimeType(mimeType: String): String =
+        when (mimeType.lowercase()) {
+            "image/png" -> "png"
+            "image/webp" -> "webp"
+            else -> "jpg"
+        }
 }
 
 // ============================================

@@ -71,9 +71,9 @@ fun RewardsScreen(navController: NavController, viewModel: MainViewModel) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf(RewardTab.Browse, RewardTab.MyRewards, RewardTab.History)
-    val activeRedemptions = viewModel.redemptionHistory.filter { it.status.equals("claimed", ignoreCase = true) }
+    val activeRedemptions = viewModel.redemptionHistory.filter { it.status.equals("RESERVED", ignoreCase = true) }
 
-    LaunchedEffect(Unit) { viewModel.fetchUserData() }
+    LaunchedEffect(Unit) { viewModel.fetchUserData(context) }
 
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
@@ -136,7 +136,7 @@ fun RewardsScreen(navController: NavController, viewModel: MainViewModel) {
                         )
                     }
                     if (activeRedemptions.isEmpty()) {
-                        item { EmptyRewardState("No claimed rewards yet") }
+                        item { EmptyRewardState("No reserved rewards yet") }
                     } else {
                         items(activeRedemptions) { redemption ->
                             ClaimedRewardCard(
@@ -484,7 +484,7 @@ private fun RedemptionHistoryCard(redemption: Redemption, reward: Reward?) {
     RewardListCard(
         title = redemption.item_name,
         imageUrl = reward?.image_url,
-        subtitle = formatDateTime(redemption.created_at ?: redemption.claimed_at),
+        subtitle = formatDateTime(redemption.created_at ?: redemption.reserved_at),
         status = redemption.status,
         pointsText = "-${redemption.points_spent} pts",
         statusColor = redemptionStatusColor(redemption.status),
@@ -496,13 +496,12 @@ private fun RedemptionHistoryCard(redemption: Redemption, reward: Reward?) {
 @Composable
 private fun ClaimedRewardCard(redemption: Redemption, reward: Reward?) {
     val expiry = redemption.expires_at?.let { "EXPIRES: ${formatDateOnly(it)}" }
-        ?: "EXPIRES: TODO"
-    // TODO: Use backend-provided expiry display once redemption expiry format is finalized.
+        ?: "PICKUP PENDING"
     RewardListCard(
         title = redemption.item_name,
         imageUrl = reward?.image_url,
         subtitle = expiry,
-        status = "CLAIMED",
+        status = "RESERVED",
         pointsText = null,
         statusColor = Color(0xFF006B1B),
         trailingTextColor = Color(0xFF595C5B),
@@ -655,9 +654,9 @@ private fun findRewardForRedemption(redemption: Redemption, rewards: List<Reward
 }
 
 private fun redemptionStatusColor(status: String): Color = when (status.lowercase()) {
-    "claimed" -> Color(0xFF006B1B)
-    "redeemed", "completed" -> Color(0xFF595C5B)
-    "expired" -> Color(0xFFB02500)
+    "reserved" -> Color(0xFF006B1B)
+    "completed" -> Color(0xFF595C5B)
+    "cancelled" -> Color(0xFFB02500)
     else -> Color(0xFF747776)
 }
 

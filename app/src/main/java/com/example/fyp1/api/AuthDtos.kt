@@ -23,6 +23,10 @@ data class LoginRequest(
     val password: String
 )
 
+data class UpdateProfileRequest(
+    val name: String
+)
+
 data class AuthData(
     val token: String,
     val user: AuthUser

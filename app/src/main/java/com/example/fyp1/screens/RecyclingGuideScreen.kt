@@ -28,10 +28,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -43,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fyp1.MaterialGuide
+import com.example.fyp1.components.FloatingBottomNavigationScaffold
 
 private val GuideBackground = Color(0xFFF5F7F5)
 private val GuideGreen = Color(0xFF0B7D2B)
@@ -63,13 +61,18 @@ fun RecyclingGuideScreen(navController: NavController) {
         )
     }
 
-    Scaffold(containerColor = GuideBackground) { padding ->
+    FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(top = padding.calculateTopPadding())
                 .background(GuideBackground),
-            contentPadding = PaddingValues(start = 14.dp, end = 14.dp, top = 0.dp, bottom = 28.dp),
+            contentPadding = PaddingValues(
+                start = 14.dp,
+                end = 14.dp,
+                top = 0.dp,
+                bottom = padding.calculateBottomPadding()
+            ),
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item { GuideRewardStyleHeader(onBack = { navController.popBackStack() }) }

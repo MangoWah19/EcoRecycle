@@ -65,6 +65,21 @@ class AuthRepository(context: Context) {
         return result
     }
 
+    suspend fun updateProfileName(name: String): AuthResult<AuthUser> {
+        val response = runCatching { api.updateMe(UpdateProfileRequest(name = name)) }.getOrElse {
+            return AuthResult.Error(networkErrorMessage(it))
+        }
+        val result = runCatching {
+            handleResponse(response) { it.data.user }
+        }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
+        if (result is AuthResult.Success) {
+            sessionManager.saveUser(result.value)
+        } else if (response.code() == 401) {
+            sessionManager.clearSession()
+        }
+        return result
+    }
+
     fun getSavedUser(): AuthUser? = sessionManager.getUser()
 
     fun isLoggedIn(): Boolean = sessionManager.isLoggedIn()
@@ -115,9 +130,9 @@ class AuthRepository(context: Context) {
 
     private fun networkErrorMessage(error: Throwable): String {
         return when (error) {
-            is java.net.ConnectException -> "Connection Error: Could not reach the backend. Make sure Docker backend is running on port 5000."
-            is java.net.SocketTimeoutException -> "Connection Error: The backend took too long to respond."
-            is java.net.UnknownHostException -> "Connection Error: Could not resolve backend host."
+            is java.net.ConnectException -> "Connection Error: We could not reach EcoRecycle services. Please check your internet connection and try again."
+            is java.net.SocketTimeoutException -> "Connection Error: EcoRecycle services are taking too long to respond. Please try again shortly."
+            is java.net.UnknownHostException -> "Connection Error: We could not connect to EcoRecycle services. Please check your internet connection."
             else -> "Unexpected Error: ${error.localizedMessage ?: "Please try again."}"
         }
     }

@@ -221,20 +221,12 @@ private fun BadgeTopBar(onBack: () -> Unit) {
                 tint = BadgePrimary
             )
         }
-        Icon(
-            Icons.Default.EmojiEvents,
-            contentDescription = null,
-            tint = BadgePrimary,
-            modifier = Modifier
-                .padding(start = 4.dp)
-                .size(18.dp)
-        )
         Text(
             text = "Badges",
             color = BadgePrimary,
             fontSize = 18.sp,
             fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.padding(start = 8.dp)
+            modifier = Modifier.padding(start = 4.dp)
         )
     }
 }

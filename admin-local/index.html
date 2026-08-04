@@ -1,0 +1,914 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>EcoRecycle Admin Local</title>
+  <style>
+    :root {
+      --green: #087a2f;
+      --soft: #eff8f1;
+      --ink: #17211b;
+      --muted: #69766f;
+      --line: #dce7df;
+      --danger: #b3261e;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      background: #f6f8f6;
+      color: var(--ink);
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 22px;
+      background: white;
+      border-bottom: 1px solid var(--line);
+    }
+    h1, h2, h3 { margin: 0; }
+    h1 { font-size: 20px; }
+    h2 { font-size: 18px; margin-bottom: 12px; }
+    h3 { font-size: 15px; margin-bottom: 8px; }
+    main {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      gap: 18px;
+      padding: 18px;
+    }
+    section, .panel {
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .stack { display: grid; gap: 12px; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; }
+    label {
+      display: block;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      margin-bottom: 6px;
+      text-transform: uppercase;
+    }
+    input, select, textarea {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      font: inherit;
+      background: white;
+    }
+    textarea { min-height: 72px; resize: vertical; }
+    textarea.codebox {
+      min-height: 120px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 12px;
+      white-space: pre;
+    }
+    button {
+      border: 0;
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-weight: 800;
+      cursor: pointer;
+      background: var(--green);
+      color: white;
+    }
+    button.secondary { background: #e9f4ec; color: var(--green); }
+    button.danger { background: var(--danger); }
+    button:disabled { opacity: .55; cursor: not-allowed; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 13px;
+    }
+    th, td {
+      text-align: left;
+      padding: 10px;
+      border-bottom: 1px solid var(--line);
+      vertical-align: top;
+    }
+    th { color: var(--muted); background: #fbfdfb; font-size: 11px; text-transform: uppercase; }
+    .pill {
+      display: inline-block;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--soft);
+      color: var(--green);
+      font-size: 11px;
+      font-weight: 800;
+    }
+    .muted { color: var(--muted); }
+    .error { color: var(--danger); font-weight: 700; }
+    .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: end; }
+    .qr-preview {
+      display: grid;
+      place-items: center;
+      min-height: 220px;
+      margin: 12px 0;
+      padding: 12px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      background: #fbfdfb;
+    }
+    .qr-preview svg {
+      width: min(100%, 220px);
+      height: auto;
+      background: white;
+    }
+    .qr-thumb svg {
+      width: 120px;
+      height: auto;
+      background: white;
+      border: 1px solid var(--line);
+      border-radius: 4px;
+    }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .checkbox-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+    .check-option {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #fbfdfb;
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 700;
+      text-transform: none;
+      margin: 0;
+    }
+    .check-option input {
+      width: auto;
+      margin: 0;
+    }
+    .hidden { display: none; }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>EcoRecycle Admin Local</h1>
+      <div class="muted">Express backend test page</div>
+    </div>
+    <button class="secondary" onclick="loadAll()">Refresh</button>
+  </header>
+
+  <main>
+    <aside class="stack">
+      <section>
+        <h2>Connection</h2>
+        <label for="apiBase">API Base URL</label>
+        <input id="apiBase" value="http://localhost:5000/api/v1" />
+        <div style="height: 10px"></div>
+        <label for="email">Admin Email</label>
+        <input id="email" value="admin@sdg.local" />
+        <div style="height: 10px"></div>
+        <label for="password">Password</label>
+        <input id="password" type="password" value="Password123!" />
+        <div style="height: 12px"></div>
+        <button onclick="login()">Login</button>
+        <button class="secondary" onclick="logout()">Logout</button>
+        <p id="loginStatus" class="muted">Not logged in.</p>
+      </section>
+
+      <section>
+        <h2>Point Rates</h2>
+        <div id="rates" class="stack"></div>
+        <button onclick="saveRates()">Save Rates</button>
+      </section>
+
+      <section>
+        <h2>Issue Recycling QR</h2>
+        <label>Material</label>
+        <select id="qrMaterial"></select>
+        <label>Estimated Weight (kg)</label>
+        <input id="qrWeight" type="number" step="0.1" min="0.1" value="1" />
+        <label>Expires In Minutes</label>
+        <input id="qrExpires" type="number" min="1" max="1440" value="15" />
+        <button onclick="issueQr()">Issue QR</button>
+        <div style="height: 10px"></div>
+        <label>Latest QR Claim Payload</label>
+        <div id="latestQrPreview" class="qr-preview"><span class="muted">QR preview appears here.</span></div>
+        <textarea id="latestQrPayload" class="codebox" readonly placeholder="Issued QR payload appears here."></textarea>
+        <div class="actions">
+          <button class="secondary" onclick="copyFrom('latestQrPayload')">Copy Payload</button>
+          <button class="secondary" onclick="downloadLatestQr()">Download QR</button>
+        </div>
+      </section>
+
+      <section>
+        <h2>Create Reward</h2>
+        <label>Name</label>
+        <input id="rewardName" placeholder="Campus Cafe Voucher" />
+        <label>Points Required</label>
+        <input id="rewardPoints" type="number" value="100" />
+        <label>Stock</label>
+        <input id="rewardStock" type="number" value="10" />
+        <label>Tier</label>
+        <select id="rewardTier">
+          <option value="small">small</option>
+          <option value="medium">medium</option>
+          <option value="large">large</option>
+        </select>
+        <button onclick="createReward()">Create Reward</button>
+      </section>
+
+      <section>
+        <h2>Create Content</h2>
+        <div class="actions" style="margin-bottom: 10px">
+          <button class="secondary" onclick="fillContentSample('plastic')">Plastic Sample</button>
+          <button class="secondary" onclick="fillContentSample('safety')">Safety Sample</button>
+        </div>
+        <label>Title</label>
+        <input id="contentTitle" placeholder="Smart Plastic Sorting Basics" />
+        <label>Summary</label>
+        <textarea id="contentSummary" placeholder="Short intro shown near the top of the article."></textarea>
+        <label>Body</label>
+        <textarea id="contentBody" placeholder="Fallback full article text."></textarea>
+        <label>Read Time Minutes</label>
+        <input id="contentReadMinutes" type="number" min="1" value="5" />
+        <label>Status</label>
+        <select id="contentStatus">
+          <option value="PUBLISHED" selected>PUBLISHED</option>
+          <option value="DRAFT">DRAFT</option>
+          <option value="ARCHIVED">ARCHIVED</option>
+        </select>
+        <label>Tags</label>
+        <div id="contentTags" class="checkbox-grid"></div>
+        <label>Image URL</label>
+        <input id="contentImageUrl" placeholder="Optional image URL" />
+        <label>Upload Content Image</label>
+        <input id="contentImageFile" type="file" accept="image/png,image/jpeg,image/webp" />
+        <button class="secondary" onclick="uploadContentImage()">Upload Image</button>
+        <label style="margin-top: 10px">Content Blocks JSON</label>
+        <textarea id="contentBlocks" class="codebox" placeholder='[{"type":"heading","text":"Section title"},{"type":"paragraph","text":"Article paragraph..."}]'></textarea>
+        <button onclick="createContent()">Create Content</button>
+        <p class="muted">The Android app still shows the hard-coded “Did You Know?” card for every content detail page.</p>
+      </section>
+    </aside>
+
+    <div class="stack">
+      <section>
+        <h2>Issued Recycling QR Codes</h2>
+        <div class="toolbar">
+          <div>
+            <label>Status</label>
+            <select id="qrStatus" onchange="loadQrCodes()">
+              <option value="">All</option>
+              <option value="ISSUED">Issued</option>
+              <option value="CLAIMED">Claimed</option>
+              <option value="EXPIRED">Expired</option>
+              <option value="INVALIDATED">Invalidated</option>
+            </select>
+          </div>
+        </div>
+        <div id="qrCodes"></div>
+      </section>
+
+      <section>
+        <h2>Recycling Submissions</h2>
+        <div class="toolbar">
+          <div>
+            <label>Status</label>
+            <select id="submissionStatus" onchange="loadRecyclingSubmissions()">
+              <option value="">All</option>
+              <option value="PENDING_REVIEW">Pending Review</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+          </div>
+          <div>
+            <label>Source</label>
+            <select id="submissionSource" onchange="loadRecyclingSubmissions()">
+              <option value="">All</option>
+              <option value="MANUAL">Manual</option>
+              <option value="QR">QR</option>
+            </select>
+          </div>
+        </div>
+        <div id="submissions"></div>
+      </section>
+
+      <div class="grid">
+        <section>
+          <h2>Rewards</h2>
+          <div id="rewards"></div>
+        </section>
+        <section>
+          <h2>Redemptions</h2>
+          <div id="redemptions"></div>
+        </section>
+      </div>
+
+      <div class="grid">
+        <section>
+          <h2>Leaderboard</h2>
+          <select id="leaderboardTimeframe" onchange="loadLeaderboard()">
+            <option value="daily">daily</option>
+            <option value="weekly">weekly</option>
+            <option value="all_time" selected>all_time</option>
+          </select>
+          <div id="leaderboard"></div>
+        </section>
+        <section>
+          <h2>Suspicious Activity</h2>
+          <div id="suspicious"></div>
+        </section>
+      </div>
+
+      <section>
+        <h2>Content</h2>
+        <div class="toolbar">
+          <div>
+            <label>Tag</label>
+            <select id="contentFilterTag" onchange="loadContent()">
+              <option value="">All</option>
+            </select>
+          </div>
+          <div>
+            <label>Status</label>
+            <select id="contentFilterStatus" onchange="loadContent()">
+              <option value="">All</option>
+              <option value="PUBLISHED">Published</option>
+              <option value="DRAFT">Draft</option>
+              <option value="ARCHIVED">Archived</option>
+            </select>
+          </div>
+        </div>
+        <div id="contentList"></div>
+      </section>
+    </div>
+  </main>
+
+  <script src="./qrcode-generator.js"></script>
+  <script>
+    let token = localStorage.getItem("ecorecycle_admin_token") || "";
+    const contentTagOptions = [
+      "plastic",
+      "paper",
+      "ewaste",
+      "food-waste",
+      "sorting",
+      "cleanliness",
+      "safety",
+      "general"
+    ];
+
+    function baseUrl() {
+      const input = document.getElementById("apiBase");
+      const fixed = input.value.trim().replace(/^http:\/(?!\/)/i, "http://").replace(/^https:\/(?!\/)/i, "https://");
+      input.value = fixed;
+      return fixed.replace(/\/$/, "");
+    }
+
+    function setStatus(text, isError = false) {
+      const el = document.getElementById("loginStatus");
+      el.textContent = text;
+      el.className = isError ? "error" : "muted";
+    }
+
+    async function api(path, options = {}) {
+      const isFormData = options.body instanceof FormData;
+      const response = await fetch(`${baseUrl()}${path}`, {
+        ...options,
+        headers: {
+          ...(isFormData ? {} : { "Content-Type": "application/json" }),
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(options.headers || {})
+        }
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(payload.error?.message || `Request failed: ${response.status}`);
+      }
+      return payload.data;
+    }
+
+    function escapeHtml(value) {
+      return String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    async function copyFrom(id) {
+      const el = document.getElementById(id);
+      if (!el) return;
+      try {
+        await navigator.clipboard.writeText(el.value || el.textContent || "");
+      } catch (_error) {
+        el.focus();
+        el.select?.();
+        document.execCommand("copy");
+      }
+    }
+
+    function createQrSvg(payload, size = 6, margin = 2) {
+      if (!payload) return "";
+      const qr = qrcode(0, "M");
+      qr.addData(payload);
+      qr.make();
+      return qr.createSvgTag(size, margin);
+    }
+
+    function renderQrInto(elementId, payload) {
+      const el = document.getElementById(elementId);
+      if (!el) return;
+      el.innerHTML = payload
+        ? createQrSvg(payload)
+        : `<span class="muted">QR preview appears here.</span>`;
+    }
+
+    function downloadQrPayload(payload, filename) {
+      if (!payload) {
+        alert("No QR payload available to download.");
+        return;
+      }
+
+      const svgMarkup = createQrSvg(payload, 8, 4);
+      const svgBlob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+      const url = URL.createObjectURL(svgBlob);
+      const image = new Image();
+
+      image.onload = () => {
+        const canvas = document.createElement("canvas");
+        canvas.width = image.width || 512;
+        canvas.height = image.height || 512;
+        const context = canvas.getContext("2d");
+        context.fillStyle = "#ffffff";
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0);
+        URL.revokeObjectURL(url);
+
+        const link = document.createElement("a");
+        link.download = filename;
+        link.href = canvas.toDataURL("image/png");
+        link.click();
+      };
+
+      image.src = url;
+    }
+
+    function downloadLatestQr() {
+      downloadQrPayload(document.getElementById("latestQrPayload").value, "ecorecycle-recycling-qr.png");
+    }
+
+    function downloadQrFromPayloadId(payloadId, qrId) {
+      const payload = document.getElementById(payloadId)?.value || "";
+      downloadQrPayload(payload, `${qrId || "ecorecycle"}-recycling-qr.png`);
+    }
+
+    async function login() {
+      try {
+        const data = await api("/auth/login", {
+          method: "POST",
+          body: JSON.stringify({
+            email: document.getElementById("email").value,
+            password: document.getElementById("password").value
+          })
+        });
+        token = data.token;
+        localStorage.setItem("ecorecycle_admin_token", token);
+        setStatus(`Logged in as ${data.user.name}`);
+        await loadAll();
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    function logout() {
+      token = "";
+      localStorage.removeItem("ecorecycle_admin_token");
+      setStatus("Logged out.");
+    }
+
+    async function loadAll() {
+      if (!token) {
+        setStatus("Login first.", true);
+        return;
+      }
+      initContentControls();
+      await Promise.allSettled([
+        loadRates(),
+        loadQrCodes(),
+        loadRecyclingSubmissions(),
+        loadRewards(),
+        loadRedemptions(),
+        loadLeaderboard(),
+        loadSuspicious(),
+        loadContent()
+      ]);
+    }
+
+    function initContentControls() {
+      const tagsEl = document.getElementById("contentTags");
+      const filterEl = document.getElementById("contentFilterTag");
+      if (tagsEl && !tagsEl.innerHTML.trim()) {
+        tagsEl.innerHTML = contentTagOptions.map(tag => `
+          <label class="check-option">
+            <input type="checkbox" class="contentTagInput" value="${escapeHtml(tag)}" ${tag === "general" ? "checked" : ""} />
+            ${escapeHtml(tag)}
+          </label>
+        `).join("");
+      }
+      if (filterEl && filterEl.options.length <= 1) {
+        filterEl.insertAdjacentHTML("beforeend", contentTagOptions.map(tag =>
+          `<option value="${escapeHtml(tag)}">${escapeHtml(tag)}</option>`
+        ).join(""));
+      }
+    }
+
+    function selectedContentTags() {
+      return [...document.querySelectorAll(".contentTagInput:checked")].map(input => input.value);
+    }
+
+    function setContentTags(tags) {
+      document.querySelectorAll(".contentTagInput").forEach(input => {
+        input.checked = tags.includes(input.value);
+      });
+    }
+
+    function fillContentSample(type) {
+      initContentControls();
+      const samples = {
+        plastic: {
+          title: "Smart Plastic Sorting Basics",
+          summary: "Learn how to identify common plastic items and prepare them correctly before recycling.",
+          body: "Plastic recycling starts before the item reaches the bin. Clean containers, remove leftover liquid, and check whether the plastic type is accepted by your local recycling program.",
+          estimatedReadMinutes: 5,
+          tags: ["plastic", "sorting", "general"],
+          contentBlocks: [
+            { type: "heading", text: "Check the Plastic Item" },
+            { type: "paragraph", text: "Look for recycling labels and avoid mixing heavily contaminated plastic with clean recyclable items." },
+            { type: "heading", text: "Rinse and Dry" },
+            { type: "paragraph", text: "A quick rinse helps reduce odor and prevents food residue from affecting other recyclables." },
+            { type: "heading", text: "Sort Before Disposal" },
+            { type: "paragraph", text: "Place clean plastic bottles and containers into the correct recycling stream instead of general waste." }
+          ]
+        },
+        safety: {
+          title: "Safe Recycling Habits",
+          summary: "Understand simple safety habits that protect students, cleaners, and recycling handlers.",
+          body: "Safe recycling means preparing materials responsibly. Sharp, dirty, or hazardous items should not be mixed into normal recycling bins.",
+          estimatedReadMinutes: 4,
+          tags: ["safety", "cleanliness", "general"],
+          contentBlocks: [
+            { type: "heading", text: "Avoid Hazardous Items" },
+            { type: "paragraph", text: "Do not place batteries, chemical containers, or broken glass into ordinary recycling bins unless a collection point accepts them." },
+            { type: "heading", text: "Keep Materials Clean" },
+            { type: "paragraph", text: "Clean recyclables are easier to process and safer for people who handle the collected materials." },
+            { type: "heading", text: "Use the Right Bin" },
+            { type: "paragraph", text: "When unsure, read the bin label first or ask the recycling station staff before disposing of the item." }
+          ]
+        }
+      };
+      const sample = samples[type] || samples.plastic;
+      document.getElementById("contentTitle").value = sample.title;
+      document.getElementById("contentSummary").value = sample.summary;
+      document.getElementById("contentBody").value = sample.body;
+      document.getElementById("contentReadMinutes").value = sample.estimatedReadMinutes;
+      document.getElementById("contentStatus").value = "PUBLISHED";
+      document.getElementById("contentImageUrl").value = "";
+      document.getElementById("contentBlocks").value = JSON.stringify(sample.contentBlocks, null, 2);
+      setContentTags(sample.tags);
+    }
+
+    function parseContentBlocks() {
+      const raw = document.getElementById("contentBlocks").value.trim();
+      if (!raw) return undefined;
+      const parsed = JSON.parse(raw);
+      if (!Array.isArray(parsed)) {
+        throw new Error("Content Blocks JSON must be an array.");
+      }
+      return parsed;
+    }
+
+    async function uploadContentImage() {
+      const input = document.getElementById("contentImageFile");
+      const file = input?.files?.[0];
+      if (!file) {
+        setStatus("Choose a content image first.", true);
+        return;
+      }
+
+      const form = new FormData();
+      form.append("file", file);
+      try {
+        const data = await api("/uploads/content-image", {
+          method: "POST",
+          body: form
+        });
+        document.getElementById("contentImageUrl").value = data.upload?.fileUrl || "";
+        setStatus("Content image uploaded. The image URL was added to the content form.");
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    async function createContent() {
+      const tags = selectedContentTags();
+      if (tags.length === 0) {
+        setStatus("Choose at least one content tag.", true);
+        return;
+      }
+
+      try {
+        const payload = {
+          title: document.getElementById("contentTitle").value.trim(),
+          summary: document.getElementById("contentSummary").value.trim(),
+          body: document.getElementById("contentBody").value.trim(),
+          estimatedReadMinutes: Number(document.getElementById("contentReadMinutes").value),
+          status: document.getElementById("contentStatus").value,
+          tags,
+          contentBlocks: parseContentBlocks()
+        };
+        const imageUrl = document.getElementById("contentImageUrl").value.trim();
+        if (imageUrl) payload.imageUrl = imageUrl;
+        if (!payload.summary) delete payload.summary;
+        if (!payload.contentBlocks) delete payload.contentBlocks;
+
+        const data = await api("/content", {
+          method: "POST",
+          body: JSON.stringify(payload)
+        });
+        setStatus(`Created content: ${data.content.id}`);
+        await loadContent();
+      } catch (error) {
+        setStatus(error.message, true);
+      }
+    }
+
+    async function loadContent() {
+      const params = new URLSearchParams();
+      const tag = document.getElementById("contentFilterTag")?.value || "";
+      const status = document.getElementById("contentFilterStatus")?.value || "";
+      if (tag) params.set("tag", tag);
+      if (status) params.set("status", status);
+      const query = params.toString();
+      const data = await api(`/content${query ? `?${query}` : ""}`);
+      const rows = data.content.map(content => `
+        <tr>
+          <td>${escapeHtml(content.id)}<br><span class="muted">v${content.version}</span></td>
+          <td>${content.imageUrl ? `<img src="${escapeHtml(content.imageUrl)}" alt="" style="width:70px;height:50px;object-fit:cover;border-radius:6px;border:1px solid var(--line)" />` : `<span class="muted">No image</span>`}</td>
+          <td><strong>${escapeHtml(content.title)}</strong><br><span class="muted">${escapeHtml(content.summary || "").slice(0, 120)}</span></td>
+          <td>${(content.tags || []).map(tag => `<span class="pill">${escapeHtml(tag)}</span>`).join(" ")}</td>
+          <td><span class="pill">${escapeHtml(content.status)}</span><br><span class="muted">${content.estimatedReadMinutes || 5} min</span></td>
+        </tr>
+      `).join("");
+      document.getElementById("contentList").innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>Image</th><th>Title</th><th>Tags</th><th>Status</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="5" class="muted">No content.</td></tr>`}</tbody>
+        </table>
+      `;
+    }
+
+    async function loadRates() {
+      const data = await api("/recycling/point-rates");
+      document.getElementById("rates").innerHTML = data.rates.map(rate => `
+        <div>
+          <label>${escapeHtml(rate.material)}</label>
+          <input data-material="${escapeHtml(rate.material)}" class="rateInput" type="number" value="${rate.ratePerKg}" />
+        </div>
+      `).join("");
+      document.getElementById("qrMaterial").innerHTML = data.rates.map(rate => `
+        <option value="${escapeHtml(rate.material)}">${escapeHtml(rate.material)} (${rate.ratePerKg} pts/kg)</option>
+      `).join("");
+    }
+
+    async function saveRates() {
+      const rates = [...document.querySelectorAll(".rateInput")].map(input => ({
+        material: input.dataset.material,
+        ratePerKg: Number(input.value)
+      }));
+      await api("/recycling/point-rates", {
+        method: "PUT",
+        body: JSON.stringify({ rates })
+      });
+      await loadRates();
+    }
+
+    async function issueQr() {
+      const data = await api("/recycling/qr/issue", {
+        method: "POST",
+        body: JSON.stringify({
+          materialType: document.getElementById("qrMaterial").value,
+          estimatedWeightKg: Number(document.getElementById("qrWeight").value),
+          expiresInMinutes: Number(document.getElementById("qrExpires").value)
+        })
+      });
+      document.getElementById("latestQrPayload").value = data.qr.claimPayload || "";
+      renderQrInto("latestQrPreview", data.qr.claimPayload || "");
+      await loadQrCodes();
+    }
+
+    async function loadQrCodes() {
+      const status = document.getElementById("qrStatus").value;
+      const path = status ? `/recycling/qr?status=${encodeURIComponent(status)}` : "/recycling/qr";
+      const data = await api(path);
+      const rows = data.qrCodes.map(qr => {
+        const payloadId = `qrPayload_${qr.id}`;
+        const submission = qr.submissions?.[0];
+        return `
+          <tr>
+            <td>${escapeHtml(qr.id)}</td>
+            <td>${escapeHtml(qr.materialType || "-")}<br><span class="muted">${qr.estimatedWeightKg || 0} kg</span></td>
+            <td><span class="pill">${escapeHtml(qr.status)}</span><br><span class="muted">Expires: ${new Date(qr.expiresAt).toLocaleString()}</span></td>
+            <td>${escapeHtml(qr.issuedBy?.name || qr.issuedById || "-")}<br><span class="muted">${escapeHtml(qr.claimedBy?.name || "")}</span></td>
+            <td>${submission ? `${escapeHtml(submission.id)}<br><span class="pill">${escapeHtml(submission.status)}</span>` : "<span class=\"muted\">No submission yet</span>"}</td>
+            <td>
+              <div class="qr-thumb">${createQrSvg(qr.claimPayload || "", 3, 1)}</div>
+              <textarea id="${payloadId}" class="codebox" readonly>${escapeHtml(qr.claimPayload || "")}</textarea>
+              <button class="secondary" onclick="copyFrom('${payloadId}')">Copy</button>
+              <button class="secondary" onclick="downloadQrFromPayloadId('${payloadId}', '${qr.id}')">Download QR</button>
+              ${qr.status === "ISSUED" ? `<button class="danger" onclick="invalidateQr('${qr.id}')">Invalidate</button>` : ""}
+            </td>
+          </tr>
+        `;
+      }).join("");
+      document.getElementById("qrCodes").innerHTML = `
+        <table>
+          <thead><tr><th>QR ID</th><th>Material</th><th>Status</th><th>Users</th><th>Submission</th><th>Payload</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="6" class="muted">No QR codes.</td></tr>`}</tbody>
+        </table>
+      `;
+    }
+
+    async function invalidateQr(id) {
+      await api(`/recycling/qr/${id}/invalidate`, { method: "POST" });
+      await loadQrCodes();
+    }
+
+    async function loadRecyclingSubmissions() {
+      const status = document.getElementById("submissionStatus").value;
+      const source = document.getElementById("submissionSource").value;
+      const params = new URLSearchParams();
+      if (status) params.set("status", status);
+      if (source) params.set("source", source);
+      const query = params.toString();
+      const data = await api(`/recycling/submissions${query ? `?${query}` : ""}`);
+      const rows = data.submissions.map(submission => `
+        <tr>
+          <td>${escapeHtml(submission.id)}<br><span class="pill">${escapeHtml(submission.source || "MANUAL")}</span></td>
+          <td>${escapeHtml(submission.user?.name || submission.userId)}<br><span class="muted">${escapeHtml(submission.user?.email || "")}</span></td>
+          <td>${escapeHtml(submission.materialType)}${submission.qrCodeId ? `<br><span class="muted">QR: ${escapeHtml(submission.qrCodeId)}</span>` : ""}</td>
+          <td>${submission.quantity} kg</td>
+          <td><span class="pill">${escapeHtml(submission.status)}</span><br>${submission.pointsAwarded || 0} pts</td>
+          <td>${escapeHtml(submission.reviewNote || "")}</td>
+          <td>
+            ${submission.status === "PENDING_REVIEW" ? `
+              <button onclick="reviewSubmission('${submission.id}', 'APPROVED')">Approve</button>
+              <button class="danger" onclick="reviewSubmission('${submission.id}', 'REJECTED')">Reject</button>
+            ` : ""}
+          </td>
+        </tr>
+      `).join("");
+      document.getElementById("submissions").innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>User</th><th>Material</th><th>Qty</th><th>Status</th><th>Note</th><th>Action</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="7" class="muted">No submissions.</td></tr>`}</tbody>
+        </table>
+      `;
+    }
+
+    async function reviewSubmission(id, status) {
+      const reviewNote = prompt(status === "APPROVED" ? "Approval note" : "Rejection reason") || "";
+      await api(`/recycling/submissions/${id}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, reviewNote })
+      });
+      await Promise.all([loadRecyclingSubmissions(), loadQrCodes(), loadLeaderboard(), loadSuspicious()]);
+    }
+
+    async function loadRewards() {
+      const data = await api("/rewards?includeInactive=true");
+      document.getElementById("rewards").innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>Image</th><th>Name</th><th>Cost</th><th>Stock</th><th>Active</th><th>Upload</th></tr></thead>
+          <tbody>${data.rewards.map(reward => `
+            <tr>
+              <td>${reward.id}</td>
+              <td>${reward.imageUrl ? `<img src="${escapeHtml(reward.imageUrl)}" alt="" style="width:56px;height:56px;object-fit:cover;border-radius:6px;border:1px solid var(--line)" />` : `<span class="muted">No image</span>`}</td>
+              <td>${escapeHtml(reward.name)}</td>
+              <td>${reward.pointsRequired}</td>
+              <td>${reward.stock}</td>
+              <td>${reward.isActive}</td>
+              <td>
+                <input id="rewardImageFile-${reward.id}" type="file" accept="image/png,image/jpeg,image/webp" />
+                <button class="secondary" onclick="uploadRewardImage(${reward.id})">Upload Image</button>
+              </td>
+            </tr>
+          `).join("") || `<tr><td colspan="7" class="muted">No rewards.</td></tr>`}</tbody>
+        </table>
+      `;
+    }
+
+    async function createReward() {
+      await api("/rewards", {
+        method: "POST",
+        body: JSON.stringify({
+          name: document.getElementById("rewardName").value,
+          pointsRequired: Number(document.getElementById("rewardPoints").value),
+          stock: Number(document.getElementById("rewardStock").value),
+          tier: document.getElementById("rewardTier").value
+        })
+      });
+      await loadRewards();
+    }
+
+    async function uploadRewardImage(rewardId) {
+      const input = document.getElementById(`rewardImageFile-${rewardId}`);
+      const file = input?.files?.[0];
+      if (!file) {
+        setStatus("Choose a reward image first.", true);
+        return;
+      }
+
+      const form = new FormData();
+      form.append("file", file);
+      await api(`/rewards/${rewardId}/image`, {
+        method: "POST",
+        body: form
+      });
+      setStatus("Reward image uploaded.");
+      await loadRewards();
+    }
+
+    async function loadRedemptions() {
+      const data = await api("/rewards/redemptions");
+      document.getElementById("redemptions").innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>User</th><th>Item</th><th>Points</th><th>Status</th></tr></thead>
+          <tbody>${data.redemptions.map(redemption => `
+            <tr>
+              <td>${redemption.id}</td>
+              <td>${redemption.user?.name || redemption.userId}</td>
+              <td>${redemption.itemName}</td>
+              <td>${redemption.pointsSpent}</td>
+              <td><span class="pill">${redemption.status}</span></td>
+            </tr>
+          `).join("") || `<tr><td colspan="5" class="muted">No redemptions.</td></tr>`}</tbody>
+        </table>
+      `;
+    }
+
+    async function loadLeaderboard() {
+      const timeframe = document.getElementById("leaderboardTimeframe").value;
+      const data = await api(`/leaderboard?timeframe=${timeframe}`);
+      document.getElementById("leaderboard").innerHTML = `
+        <table>
+          <thead><tr><th>Rank</th><th>User</th><th>Points</th></tr></thead>
+          <tbody>${data.entries.map(entry => `
+            <tr><td>${entry.rank}</td><td>${entry.full_name}</td><td>${timeframe === "all_time" ? entry.lifetime_points : entry.total_points}</td></tr>
+          `).join("") || `<tr><td colspan="3" class="muted">No leaderboard entries.</td></tr>`}</tbody>
+        </table>
+      `;
+    }
+
+    async function loadSuspicious() {
+      const data = await api("/anti-gaming/suspicious-activities");
+      document.getElementById("suspicious").innerHTML = data.activities.map(activity => `
+        <div class="panel">
+          <strong>${activity.user?.name || activity.userId}</strong>
+          <span class="pill">${activity.severity}</span>
+          <p>${activity.activityType}: ${activity.details || ""}</p>
+          <button class="secondary" onclick="setFlag('${activity.userId}', false)">Unflag User</button>
+        </div>
+      `).join("") || `<p class="muted">No suspicious activity recorded.</p>`;
+    }
+
+    async function setFlag(userId, flagged) {
+      await api(`/anti-gaming/users/${userId}/flag`, {
+        method: "PATCH",
+        body: JSON.stringify({ flagged, reason: flagged ? "Manual flag" : "Manual unflag" })
+      });
+      await loadSuspicious();
+    }
+
+    initContentControls();
+
+    if (token) {
+      setStatus("Saved token found. Click Refresh to load.");
+    }
+  </script>
+</body>
+</html>

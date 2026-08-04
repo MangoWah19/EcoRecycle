@@ -1,9 +1,11 @@
 package com.example.fyp1.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -29,6 +31,7 @@ import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Quiz
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Timer
+import androidx.compose.material.icons.outlined.BookmarkBorder
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -42,6 +45,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -56,11 +60,21 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import coil.compose.AsyncImage
+import com.example.fyp1.api.AuthRepository
 import com.example.fyp1.api.AuthResult
 import com.example.fyp1.api.BackendContent
 import com.example.fyp1.api.ContentRepository
 import com.example.fyp1.api.ContentSelectionCache
+import com.example.fyp1.api.SavedContentRepository
+import com.example.fyp1.components.AppPopOutDialog
+import com.example.fyp1.components.AppPopOutMessage
+import com.example.fyp1.components.EcoNavigationDrawer
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
+import com.example.fyp1.components.PopOutMessageType
+import com.example.fyp1.offline.ConnectionModeChip
+import com.example.fyp1.offline.ConnectionUiMode
+import com.example.fyp1.offline.rememberConnectionUiMode
+import kotlinx.coroutines.launch
 
 private val ContentFilterOptions = listOf(
     ContentFilter("All", null),
@@ -79,12 +93,17 @@ private data class ContentFilter(val label: String, val tag: String?)
 @Composable
 fun EcoLearningScreen(navController: NavController) {
     val context = LocalContext.current
+    val connectionMode = rememberConnectionUiMode()
     val contentRepository = remember { ContentRepository(context) }
+    val savedContentRepository = remember { SavedContentRepository(context) }
+    val authRepository = remember { AuthRepository(context) }
     var contentItems by remember { mutableStateOf<List<BackendContent>>(emptyList()) }
+    var savedContentIds by remember { mutableStateOf<Set<String>>(emptySet()) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var searchQuery by remember { mutableStateOf("") }
     var selectedFilter by remember { mutableStateOf(ContentFilterOptions.first()) }
+    var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
 
     val visibleContent = contentItems.filter { content ->
         val query = searchQuery.trim()
@@ -105,9 +124,11 @@ fun EcoLearningScreen(navController: NavController) {
             is AuthResult.Success -> contentItems = result.value
             is AuthResult.Error -> errorMessage = result.message
         }
+        savedContentIds = savedContentRepository.getSavedIds()
         isLoading = false
     }
 
+    EcoNavigationDrawer(navController = navController) { openDrawer ->
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -121,7 +142,7 @@ fun EcoLearningScreen(navController: NavController) {
             ),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            item { EcoLearningTopBar(onMenuClick = { }, onProfileClick = { navController.navigate("profile") }) }
+            item { EcoLearningTopBar(connectionMode = connectionMode, onMenuClick = openDrawer, onProfileClick = { navController.navigate("profile") }) }
             item { EcoLearningHeader() }
             item {
                 SearchAndFilters(
@@ -143,22 +164,56 @@ fun EcoLearningScreen(navController: NavController) {
             items(visibleContent, key = { it.id }) { content ->
                 LearningGuideCard(
                     content = content,
+                    isOffline = connectionMode == ConnectionUiMode.Offline,
+                    isSaved = savedContentIds.contains(content.id),
+                    onBookmarkToggle = {
+                        val saved = savedContentRepository.toggle(content)
+                        savedContentIds = if (saved) {
+                            savedContentIds + content.id
+                        } else {
+                            savedContentIds - content.id
+                        }
+                    },
                     onReadGuide = {
                         ContentSelectionCache.selectedContent = content
                         navController.navigate("content_detail/${content.id}")
                     },
                     onTakeQuiz = {
-                        ContentSelectionCache.selectedContent = content
-                        navController.navigate("quiz_attempt/${content.id}")
+                        when {
+                            !authRepository.isLoggedIn() -> {
+                                popOutMessage = AppPopOutMessage(
+                                    title = "Login Required",
+                                    message = "Please log in before taking quizzes so your quiz result can be saved.",
+                                    type = PopOutMessageType.Info
+                                )
+                            }
+                            connectionMode == ConnectionUiMode.Offline -> {
+                                popOutMessage = AppPopOutMessage(
+                                    title = "Internet Required",
+                                    message = "Please reconnect to the internet before taking this quiz. You can still read cached learning content while offline.",
+                                    type = PopOutMessageType.Info
+                                )
+                            }
+                            else -> {
+                                ContentSelectionCache.selectedContent = content
+                                navController.navigate("quiz_attempt/${content.id}")
+                            }
+                        }
                     }
                 )
             }
         }
     }
+    }
+
+    AppPopOutDialog(
+        message = popOutMessage,
+        onDismiss = { popOutMessage = null }
+    )
 }
 
 @Composable
-private fun EcoLearningTopBar(onMenuClick: () -> Unit, onProfileClick: () -> Unit) {
+private fun EcoLearningTopBar(connectionMode: ConnectionUiMode, onMenuClick: () -> Unit, onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -177,20 +232,30 @@ private fun EcoLearningTopBar(onMenuClick: () -> Unit, onProfileClick: () -> Uni
                 fontWeight = FontWeight.ExtraBold
             )
         }
-        Surface(
-            modifier = Modifier
-                .size(42.dp)
-                .clickable(onClick = onProfileClick),
-            shape = CircleShape,
-            color = Color(0xFFE6E9E7),
-            border = BorderStroke(2.dp, Color(0x1A006B1B))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                imageVector = Icons.Default.Person,
-                contentDescription = "Profile",
-                tint = LearnPrimary,
-                modifier = Modifier.padding(9.dp)
-            )
+            ConnectionModeChip(connectionMode)
+            Surface(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onProfileClick
+                    ),
+                shape = CircleShape,
+                color = Color(0xFFE6E9E7),
+                border = BorderStroke(2.dp, Color(0x1A006B1B))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Person,
+                    contentDescription = "Profile",
+                    tint = LearnPrimary,
+                    modifier = Modifier.padding(9.dp)
+                )
+            }
         }
     }
 }
@@ -299,9 +364,13 @@ private fun FilterChipLabel(label: String, selected: Boolean = false, onClick: (
 @Composable
 private fun LearningGuideCard(
     content: BackendContent,
+    isOffline: Boolean,
+    isSaved: Boolean,
+    onBookmarkToggle: suspend () -> Unit,
     onReadGuide: () -> Unit,
     onTakeQuiz: () -> Unit
 ) {
+    val scope = rememberCoroutineScope()
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -310,7 +379,11 @@ private fun LearningGuideCard(
         border = BorderStroke(1.dp, Color(0xFFE5EAE6))
     ) {
         Column {
-            ContentCardHero(content = content)
+            ContentCardHero(
+                content = content,
+                isSaved = isSaved,
+                onBookmarkToggle = { scope.launch { onBookmarkToggle() } }
+            )
             Column(
                 modifier = Modifier.padding(22.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -332,42 +405,33 @@ private fun LearningGuideCard(
                     overflow = TextOverflow.Ellipsis
                 )
                 LearningButton(text = "Read Guide", primary = true, onClick = onReadGuide)
-                LearningButton(text = "Take Quiz", primary = false, onClick = onTakeQuiz)
+                LearningButton(text = "Take Quiz", primary = false, offline = isOffline, onClick = onTakeQuiz)
             }
         }
     }
 }
 
 @Composable
-private fun ContentCardHero(content: BackendContent) {
+private fun ContentCardHero(content: BackendContent, isSaved: Boolean, onBookmarkToggle: () -> Unit) {
     val imageRequest = rememberEcoImageRequest(content.imageUrl)
     Box(modifier = Modifier.fillMaxWidth().height(156.dp)) {
-        if (imageRequest != null) {
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = content.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Brush.linearGradient(listOf(Color(0xFF245F35), Color(0xFF008A95))))
-            )
-            Icon(
-                Icons.Default.Eco,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.34f),
-                modifier = Modifier.align(Alignment.Center).size(82.dp)
-            )
-        }
+        EcoLoadingImage(
+            model = imageRequest,
+            contentDescription = content.title,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            fallbackIcon = Icons.Default.Eco
+        )
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .background(Brush.verticalGradient(listOf(Color.Black.copy(alpha = 0.02f), Color.Black.copy(alpha = 0.22f))))
         )
-        BookmarkButton(modifier = Modifier.align(Alignment.TopEnd).padding(12.dp))
+        BookmarkButton(
+            isSaved = isSaved,
+            modifier = Modifier.align(Alignment.TopEnd).padding(12.dp),
+            onClick = onBookmarkToggle
+        )
     }
 }
 
@@ -402,13 +466,19 @@ private fun ContentTagsAndTime(content: BackendContent) {
 }
 
 @Composable
-private fun BookmarkButton(modifier: Modifier = Modifier) {
+private fun BookmarkButton(isSaved: Boolean, modifier: Modifier = Modifier, onClick: () -> Unit) {
     Surface(
-        modifier = modifier.size(36.dp),
+        modifier = modifier.size(36.dp).clickable(onClick = onClick),
         shape = CircleShape,
-        color = Color.White.copy(alpha = 0.86f)
+        color = if (isSaved) LearnPrimary else Color.White.copy(alpha = 0.9f),
+        border = if (isSaved) null else BorderStroke(1.5.dp, LearnPrimary)
     ) {
-        Icon(Icons.Default.Bookmark, contentDescription = "Bookmark", tint = LearnPrimary, modifier = Modifier.padding(8.dp))
+        Icon(
+            imageVector = if (isSaved) Icons.Default.Bookmark else Icons.Outlined.BookmarkBorder,
+            contentDescription = if (isSaved) "Remove saved content" else "Save content",
+            tint = if (isSaved) Color.White else LearnPrimary,
+            modifier = Modifier.padding(8.dp)
+        )
     }
 }
 
@@ -427,7 +497,8 @@ private fun TagLabel(tag: String) {
 }
 
 @Composable
-private fun LearningButton(text: String, primary: Boolean, onClick: () -> Unit) {
+private fun LearningButton(text: String, primary: Boolean, offline: Boolean = false, onClick: () -> Unit) {
+    val accent = if (offline) Color(0xFF9DA6A1) else LearnPrimary
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -436,19 +507,19 @@ private fun LearningButton(text: String, primary: Boolean, onClick: () -> Unit) 
             .clickable(onClick = onClick),
         shape = CircleShape,
         color = if (primary) LearnPrimary else Color.Transparent,
-        border = if (primary) null else BorderStroke(1.dp, LearnPrimary)
+        border = if (primary) null else BorderStroke(1.dp, accent)
     ) {
         Row(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
             if (!primary) {
-                Icon(Icons.Default.Quiz, contentDescription = null, tint = LearnPrimary, modifier = Modifier.size(16.dp))
+                Icon(Icons.Default.Quiz, contentDescription = null, tint = accent, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(8.dp))
             }
             Text(
                 text = text,
-                color = if (primary) Color.White else LearnPrimary,
+                color = if (primary) Color.White else accent,
                 fontSize = 13.sp,
                 fontWeight = FontWeight.ExtraBold
             )

@@ -121,6 +121,9 @@ import java.time.ZoneId
 import com.example.fyp1.*
 import com.example.fyp1.api.AuthRepository
 import com.example.fyp1.api.AuthResult
+import com.example.fyp1.components.AppPopOutDialog
+import com.example.fyp1.components.PopOutMessageType
+import com.example.fyp1.offline.isNetworkAvailable
 import com.example.fyp1.screens.*
 
 @Composable
@@ -153,9 +156,11 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         composable("home") { HomeScreen(navController, viewModel) }
         composable("rewards") { RewardsScreen(navController, viewModel) }
         composable("profile") { ProfileScreen(navController, viewModel) }
+        composable("point_transactions") { PointLedgerScreen(navController) }
+        composable("saved_content") { SavedContentScreen(navController) }
         composable("submit_recycling") { SubmitRecyclingScreen(navController, viewModel) }
         composable("recycling_history") { RecyclingHistoryScreen(navController, viewModel) }
-        composable("qr_scanner") { QRScannerScreen(navController) }
+        composable("qr_scanner") { QRScannerScreen(navController, viewModel) }
         composable("eco_learning") { EcoLearningScreen(navController) }
         composable("content_detail/{contentId}") { backStack ->
             ContentDetailScreen(navController, backStack.arguments?.getString("contentId") ?: "")
@@ -164,6 +169,9 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
             QuizAttemptScreen(navController, backStack.arguments?.getString("contentId") ?: "")
         }
         composable("quiz_review") { QuizReviewScreen(navController) }
+        composable("about_app") { AboutAppScreen(navController) }
+        composable("how_it_works") { HowItWorksScreen(navController) }
+        composable("sustainability_policy") { SustainabilityPolicyScreen(navController) }
         composable("recycling_guide") { RecyclingGuideScreen(navController) }
         composable("guide_detail/{material}") { backStack ->
             val mat = backStack.arguments?.getString("material") ?: ""
@@ -179,6 +187,11 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         composable("forgot_password") { ForgotPasswordScreen(navController) }
         composable("reset_password") { ResetPasswordScreen(navController) }
     }
+
+    AppPopOutDialog(
+        message = viewModel.popOutMessage,
+        onDismiss = { viewModel.dismissPopOut() }
+    )
 }
 
 @Composable
@@ -205,6 +218,15 @@ private fun AuthLoadingScreen(navController: NavController, viewModel: MainViewM
         }
 
         viewModel.applyBackendUser(savedUser)
+        if (!context.isNetworkAvailable()) {
+            loadingMessage = "Offline mode. Opening cached content for ${savedUser.name}..."
+            waitForMinimumLoadingTime()
+            navController.navigate("home") {
+                popUpTo("auth_loading") { inclusive = true }
+            }
+            return@LaunchedEffect
+        }
+
         loadingMessage = "Welcome back, ${savedUser.name}. Verifying your session..."
         when (val result = authRepository.me()) {
             is AuthResult.Success -> {
@@ -216,13 +238,30 @@ private fun AuthLoadingScreen(navController: NavController, viewModel: MainViewM
                 }
             }
             is AuthResult.Error -> {
-                authRepository.clearSession()
-                viewModel.clearBackendUser()
-                loadingMessage = "Your session has expired. Please log in again."
-                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
-                waitForMinimumLoadingTime()
-                navController.navigate("login") {
-                    popUpTo("auth_loading") { inclusive = true }
+                if (result.message.startsWith("Connection Error")) {
+                    loadingMessage = "Offline mode. Opening cached content for ${savedUser.name}..."
+                    viewModel.showPopOut(
+                        title = "Offline Mode",
+                        message = "You're offline, so we opened your saved EcoRecycle session. Some features will update when you're online again.",
+                        type = PopOutMessageType.Info
+                    )
+                    waitForMinimumLoadingTime()
+                    navController.navigate("home") {
+                        popUpTo("auth_loading") { inclusive = true }
+                    }
+                } else {
+                    authRepository.clearSession()
+                    viewModel.clearBackendUser()
+                    loadingMessage = "Your session has expired. Please log in again."
+                    viewModel.showPopOut(
+                        title = "Login Required",
+                        message = result.message,
+                        type = PopOutMessageType.Error
+                    )
+                    waitForMinimumLoadingTime()
+                    navController.navigate("login") {
+                        popUpTo("auth_loading") { inclusive = true }
+                    }
                 }
             }
         }

@@ -34,6 +34,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
@@ -122,7 +124,25 @@ fun BottomNavigationBar(navController: NavController) {
             icon = Icons.AutoMirrored.Filled.MenuBook,
             activeRoutes = setOf("eco_learning", "content_detail/{contentId}", "quiz_attempt/{contentId}", "quiz_review")
         ),
-        BottomNavItem("PROFILE", "profile", Icons.Default.Person)
+        BottomNavItem(
+            label = "PROFILE",
+            route = "profile",
+            icon = Icons.Default.Person,
+            activeRoutes = setOf(
+                "profile",
+                "edit_profile",
+                "point_transactions",
+                "about_app",
+                "how_it_works",
+                "sustainability_policy",
+                "recycling_history",
+                "recycling_guide",
+                "guide_detail/{material}",
+                "saved_content",
+                "achievements",
+                "leaderboard"
+            )
+        )
     )
 
     val navBackStackEntry by navController.currentBackStackEntryAsState()
@@ -178,7 +198,11 @@ private fun BottomNavPillItem(
             .width(if (selected) 84.dp else 60.dp)
             .height(58.dp)
             .background(pillColor, CircleShape)
-            .clickable { onClick() }
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
             .padding(horizontal = 4.dp, vertical = 6.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center

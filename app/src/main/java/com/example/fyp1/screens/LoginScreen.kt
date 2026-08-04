@@ -120,6 +120,8 @@ import com.example.fyp1.*
 import com.example.fyp1.api.AuthRepository
 import com.example.fyp1.api.AuthResult
 import com.example.fyp1.components.*
+import com.example.fyp1.offline.OfflineWorkManager
+import com.example.fyp1.offline.isNetworkAvailable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -130,6 +132,7 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
     var isSignUp by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var hasAttemptedSubmit by remember { mutableStateOf(false) }
+    var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
     val authRepository = remember { AuthRepository(context) }
@@ -229,14 +232,23 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
                 isLoading = true
                 scope.launch {
                     if (isSignUp) {
+                        if (!context.isNetworkAvailable()) {
+                            isLoading = false
+                            popOutMessage = AppPopOutMessage(
+                                title = "Internet Required",
+                                message = "Please reconnect to the internet before creating a new account.",
+                                type = PopOutMessageType.Info
+                            )
+                            return@launch
+                        }
                         when (val result = authRepository.register(fullName.trim(), email.trim(), password)) {
                             is AuthResult.Success -> {
                                 isLoading = false
-                                Toast.makeText(
-                                    context,
-                                    "Registration Successful! Your account has been created. You can now log in.",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                popOutMessage = AppPopOutMessage(
+                                    title = "Account Created",
+                                    message = "Your EcoRecycle account has been created. You can now log in.",
+                                    type = PopOutMessageType.Success
+                                )
                                 email = ""
                                 password = ""
                                 fullName = ""
@@ -245,21 +257,69 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
                             }
                             is AuthResult.Error -> {
                                 isLoading = false
-                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                popOutMessage = AppPopOutMessage(
+                                    title = "Registration Failed",
+                                    message = result.message,
+                                    type = PopOutMessageType.Error
+                                )
                             }
                         }
                     } else {
+                        if (!context.isNetworkAvailable()) {
+                            val savedUser = authRepository.getSavedUser()
+                            if (savedUser != null && authRepository.isLoggedIn()) {
+                                viewModel.applyBackendUser(savedUser)
+                                isLoading = false
+                                popOutMessage = AppPopOutMessage(
+                                    title = "Offline Mode",
+                                    message = "You're offline, so we opened your saved EcoRecycle session.",
+                                    type = PopOutMessageType.Info
+                                )
+                                navController.navigate("home") {
+                                    popUpTo("login") { inclusive = true }
+                                }
+                            } else {
+                                isLoading = false
+                                popOutMessage = AppPopOutMessage(
+                                    title = "Login Needs Internet",
+                                    message = "Please log in once while online before using EcoRecycle offline.",
+                                    type = PopOutMessageType.Info
+                                )
+                            }
+                            return@launch
+                        }
+
                         when (val result = authRepository.login(email.trim(), password)) {
                             is AuthResult.Success -> {
                                 viewModel.applyBackendUser(result.value.user)
+                                OfflineWorkManager.enqueueSync(context)
+                                OfflineWorkManager.enqueuePendingMissionUploads(context)
                                 isLoading = false
                                 navController.navigate("home") {
                                     popUpTo("login") { inclusive = true }
                                 }
                             }
                             is AuthResult.Error -> {
-                                isLoading = false
-                                Toast.makeText(context, result.message, Toast.LENGTH_LONG).show()
+                                val savedUser = authRepository.getSavedUser()
+                                if (result.message.startsWith("Connection Error") && savedUser != null && authRepository.isLoggedIn()) {
+                                    viewModel.applyBackendUser(savedUser)
+                                    isLoading = false
+                                    popOutMessage = AppPopOutMessage(
+                                        title = "Offline Mode",
+                                        message = "We could not refresh your account, so we opened your saved EcoRecycle session.",
+                                        type = PopOutMessageType.Info
+                                    )
+                                    navController.navigate("home") {
+                                        popUpTo("login") { inclusive = true }
+                                    }
+                                } else {
+                                    isLoading = false
+                                    popOutMessage = AppPopOutMessage(
+                                        title = "Login Failed",
+                                        message = result.message,
+                                        type = PopOutMessageType.Error
+                                    )
+                                }
                             }
                         }
                     }
@@ -301,5 +361,9 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
         }
     }
 
+    AppPopOutDialog(
+        message = popOutMessage,
+        onDismiss = { popOutMessage = null }
+    )
 }
 

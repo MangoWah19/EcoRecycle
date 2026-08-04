@@ -4,6 +4,7 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,8 +27,10 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recycling
+import androidx.compose.material.icons.filled.ReceiptLong
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -36,8 +39,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -51,14 +57,23 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fyp1.MainViewModel
 import com.example.fyp1.api.AuthRepository
+import com.example.fyp1.components.AppPopOutDialog
+import com.example.fyp1.components.AppPopOutMessage
+import com.example.fyp1.components.EcoNavigationDrawer
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
+import com.example.fyp1.components.PopOutMessageType
+import com.example.fyp1.offline.ConnectionModeChip
+import com.example.fyp1.offline.ConnectionUiMode
+import com.example.fyp1.offline.rememberConnectionUiMode
 import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val connectionMode = rememberConnectionUiMode()
     val authRepository = remember { AuthRepository(context) }
+    var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
     val recycledKg = viewModel.recyclingHistory.sumOf { it.quantity }
     val approvedDeposits = viewModel.recyclingHistory.count { it.status.equals("Approved", ignoreCase = true) }
 
@@ -66,6 +81,7 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
         viewModel.refreshHomeProfileData(context)
     }
 
+    EcoNavigationDrawer(navController = navController) { openDrawer ->
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -80,11 +96,12 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
             verticalArrangement = Arrangement.spacedBy(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            item { ProfileTopBar() }
+            item { ProfileTopBar(connectionMode = connectionMode, onMenuClick = openDrawer) }
 
             item {
                 ProfileIdentity(
                     userName = viewModel.userName.ifBlank { "Eco Student" },
+                    isOffline = connectionMode == ConnectionUiMode.Offline,
                     onEdit = { navController.navigate("edit_profile") }
                 )
             }
@@ -119,14 +136,20 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
                         onClick = { navController.navigate("recycling_history") }
                     )
                     ProfileActionButton(
+                        title = "Point Transaction",
+                        icon = Icons.Default.ReceiptLong,
+                        backgroundColor = Color(0xFFFFF8E7),
+                        contentColor = Color(0xFF8A6500),
+                        iconBackgroundColor = Color(0x1A8A6500),
+                        onClick = { navController.navigate("point_transactions") }
+                    )
+                    ProfileActionButton(
                         title = "Saved Content",
                         icon = Icons.Default.Bookmark,
                         backgroundColor = Color(0xFFF0FBFF),
                         contentColor = Color(0xFF00656F),
                         iconBackgroundColor = Color(0x1A00656F),
-                        onClick = {
-                            Toast.makeText(context, "Saved Content coming soon", Toast.LENGTH_SHORT).show()
-                        }
+                        onClick = { navController.navigate("saved_content") }
                     )
                 }
             }
@@ -140,11 +163,11 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
                                 viewModel.clearBackendUser()
                                 navController.navigate("login") { popUpTo(0) }
                             } catch (e: Exception) {
-                                Toast.makeText(
-                                    context,
-                                    "Sign Out Failed: Unable to sign out. Please check your connection and try again.",
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                popOutMessage = AppPopOutMessage(
+                                    title = "Sign Out Failed",
+                                    message = "We could not sign you out right now. Please try again.",
+                                    type = PopOutMessageType.Error
+                                )
                             }
                         }
                     }
@@ -152,35 +175,83 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
             }
         }
     }
+    }
+
+    AppPopOutDialog(
+        message = popOutMessage,
+        onDismiss = { popOutMessage = null }
+    )
 }
 
 @Composable
-private fun ProfileTopBar() {
+private fun ProfileTopBar(connectionMode: ConnectionUiMode, onMenuClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 10.dp),
+            .padding(top = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        IconButton(onClick = { }, modifier = Modifier.size(42.dp)) {
-            Icon(
-                imageVector = Icons.Default.Menu,
-                contentDescription = "Menu",
-                tint = Color(0xFF006B1B)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onMenuClick, modifier = Modifier.size(48.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Menu,
+                    contentDescription = "Menu",
+                    tint = Color(0xFF006B1B)
+                )
+            }
+            Text(
+                text = "Profile",
+                color = Color(0xFF006B1B),
+                fontSize = 17.sp,
+                fontWeight = FontWeight.ExtraBold
             )
         }
-        Text(
-            text = "Profile",
-            color = Color(0xFF006B1B),
-            fontSize = 18.sp,
-            fontWeight = FontWeight.ExtraBold,
-            modifier = Modifier.padding(start = 4.dp)
-        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            ConnectionModeChip(connectionMode)
+            Surface(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = { }
+                    ),
+                shape = CircleShape,
+                color = Color(0xFFE6E9E7),
+                border = BorderStroke(2.dp, Color(0x1A006B1B))
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Notifications,
+                    contentDescription = "Notifications",
+                    tint = Color(0xFF006B1B),
+                    modifier = Modifier.padding(9.dp)
+                )
+            }
+        }
     }
 }
 
 @Composable
-private fun ProfileIdentity(userName: String, onEdit: () -> Unit) {
+private fun ProfileIdentity(userName: String, isOffline: Boolean, onEdit: () -> Unit) {
+    val editModifier = if (isOffline) {
+        Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+    } else {
+        Modifier
+            .size(36.dp)
+            .clip(CircleShape)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onEdit
+            )
+    }
+
     Column(
         modifier = Modifier.fillMaxWidth(),
         horizontalAlignment = Alignment.CenterHorizontally
@@ -201,18 +272,15 @@ private fun ProfileIdentity(userName: String, onEdit: () -> Unit) {
                 )
             }
             Surface(
-                modifier = Modifier
-                    .size(36.dp)
-                    .clip(CircleShape)
-                    .clickable(onClick = onEdit),
+                modifier = editModifier,
                 shape = CircleShape,
-                color = Color(0xFF00751D),
+                color = if (isOffline) Color(0xFFB8C0BC) else Color(0xFF00751D),
                 border = BorderStroke(3.dp, Color.White),
                 shadowElevation = 4.dp
             ) {
                 Icon(
                     imageVector = Icons.Default.Edit,
-                    contentDescription = "Edit profile",
+                    contentDescription = if (isOffline) "Edit profile unavailable offline" else "Edit profile",
                     tint = Color.White,
                     modifier = Modifier.padding(9.dp)
                 )

@@ -3,6 +3,7 @@ package com.example.fyp1.api
 import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.POST
 
 interface AuthApiService {
@@ -14,4 +15,7 @@ interface AuthApiService {
 
     @GET("auth/me")
     suspend fun me(): Response<ApiEnvelope<MeData>>
+
+    @PATCH("users/me")
+    suspend fun updateMe(@Body request: UpdateProfileRequest): Response<ApiEnvelope<MeData>>
 }

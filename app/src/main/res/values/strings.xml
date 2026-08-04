@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">EcoRecycle</string>
-    <string name="backend_base_url">http://192.168.0.77:5000/api/v1/</string>
+    <string name="backend_base_url">http://192.168.1.137:5000/api/v1/</string>
 </resources>

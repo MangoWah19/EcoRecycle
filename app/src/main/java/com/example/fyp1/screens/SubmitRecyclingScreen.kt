@@ -59,6 +59,7 @@ import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stars
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -140,7 +141,12 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.ZoneId
 import com.example.fyp1.*
+import com.example.fyp1.api.AuthResult
+import com.example.fyp1.api.RecyclingRepository
 import com.example.fyp1.components.*
+import com.example.fyp1.offline.ConnectionModeChip
+import com.example.fyp1.offline.ConnectionUiMode
+import com.example.fyp1.offline.rememberConnectionUiMode
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -154,8 +160,13 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
     var showProofPhotoRequired by remember { mutableStateOf(false) }
     var showPhotoSourceDialog by remember { mutableStateOf(false) }
     var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
+    var pointRates by remember { mutableStateOf<Map<String, Int>>(emptyMap()) }
+    var ratesLoaded by remember { mutableStateOf(false) }
+    var ratesLoadFailed by remember { mutableStateOf(false) }
     val scope = rememberCoroutineScope()
     val context = LocalContext.current
+    val connectionMode = rememberConnectionUiMode()
+    val isOffline = connectionMode == ConnectionUiMode.Offline
     val hasProofPhoto = proofPhotoUri != null || proofPhotoBitmap != null
     val showPopOut = { title: String, message: String, type: PopOutMessageType ->
         popOutMessage = AppPopOutMessage(title = title, message = message, type = type)
@@ -181,14 +192,18 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
             showPopOut("Camera access needed", "Please allow camera permission to take a proof photo for your deposit.", PopOutMessageType.Error)
         }
     }
-    val backStackEntry by navController.currentBackStackEntryAsState()
-    val scannedQrResult = backStackEntry?.savedStateHandle?.get<String>("qr_scan_result")
-
-    LaunchedEffect(scannedQrResult) {
-        scannedQrResult?.let { value ->
-            showPopOut("Station detected", "Scanned station: $value", PopOutMessageType.Success)
-            // TODO: Store scanned station identifier when deposit submission supports it.
-            backStackEntry?.savedStateHandle?.remove<String>("qr_scan_result")
+    LaunchedEffect(Unit) {
+        when (val result = RecyclingRepository(context).getPointRates()) {
+            is AuthResult.Success -> {
+                pointRates = result.value
+                ratesLoaded = true
+                ratesLoadFailed = result.value.isEmpty()
+            }
+            is AuthResult.Error -> {
+                pointRates = emptyMap()
+                ratesLoaded = true
+                ratesLoadFailed = true
+            }
         }
     }
 
@@ -224,11 +239,23 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
                     isSubmitting = true
                     scope.launch {
                         try {
-                            viewModel.submitRecyclingLog(selectedMat, w, context)
+                            val submitted = viewModel.submitRecyclingLog(
+                                selectedMat,
+                                w,
+                                context,
+                                proofPhotoUri,
+                                proofPhotoBitmap
+                            )
+                            if (submitted) {
+                                weight = ""
+                                proofPhotoUri = null
+                                proofPhotoBitmap = null
+                                showProofPhotoRequired = false
+                            }
                         } catch (e: Exception) {
                             showPopOut("Submission failed", "An unexpected error occurred. Please try again. (${e.localizedMessage})", PopOutMessageType.Error)
                         } finally {
-                            isSubmitting = false
+                    isSubmitting = false
                         }
                     }
                 }
@@ -243,36 +270,30 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
     )
 
     if (showPhotoSourceDialog) {
-        AlertDialog(
-            onDismissRequest = { showPhotoSourceDialog = false },
-            title = { Text("Proof of Deposit") },
-            text = { Text("Upload an existing photo or take a new photo before submitting your deposit.") },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showPhotoSourceDialog = false
-                        galleryLauncher.launch("image/*")
-                    }
-                ) {
-                    Text("Upload Photo")
-                }
+        AppPopOutDialog(
+            message = AppPopOutMessage(
+                title = "Proof of Deposit",
+                message = "Upload an existing photo or take a new photo before submitting your deposit.",
+                type = PopOutMessageType.Info,
+                buttonText = "Upload Photo",
+                secondaryButtonText = "Take Photo"
+            ),
+            onDismiss = { showPhotoSourceDialog = false },
+            onPrimary = {
+                showPhotoSourceDialog = false
+                galleryLauncher.launch("image/*")
             },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showPhotoSourceDialog = false
-                        if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
-                            cameraLauncher.launch(null)
-                        } else {
-                            cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-                        }
-                    }
-                ) {
-                    Text("Take Photo")
+            onSecondary = {
+                showPhotoSourceDialog = false
+                if (ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED) {
+                    cameraLauncher.launch(null)
+                } else {
+                    cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
                 }
             }
         )
     }
+    EcoNavigationDrawer(navController = navController) { openDrawer ->
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -287,37 +308,91 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
             verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
             item {
-                SubmitTopBar(onProfileClick = { navController.navigate("profile") })
-            }
-
-            item {
-                ScanStationCard(onClick = { navController.navigate("qr_scanner") })
-            }
-
-            item {
-                SubmitDepositFormCard(
-                    selectedMat = selectedMat,
-                    expanded = expanded,
-                    weight = weight,
-                    isSubmitting = isSubmitting,
-                    proofPhotoUri = proofPhotoUri,
-                    proofPhotoBitmap = proofPhotoBitmap,
-                    showProofPhotoError = showProofPhotoRequired,
-                    onExpandedChange = { expanded = it },
-                    onMaterialSelected = { selectedMat = it; expanded = false },
-                    onProofPhotoClick = { showPhotoSourceDialog = true },
-                    onProofPhotoRemove = {
-                        proofPhotoUri = null
-                        proofPhotoBitmap = null
-                        showProofPhotoRequired = false
-                    },
-                    onWeightChange = { input ->
-                        if (input.matches(Regex("^\\d*\\.?\\d*$"))) {
-                            weight = input
-                        }
-                    },
-                    onSubmit = submitDeposit
+                SubmitTopBar(
+                    connectionMode = connectionMode,
+                    onMenuClick = openDrawer,
+                    onProfileClick = { navController.navigate("profile") }
                 )
+            }
+
+            item {
+                DepositMethodIntroCard(
+                    onInfoClick = {
+                        popOutMessage = AppPopOutMessage(
+                            title = "Deposit Methods",
+                            message = "Use QR Scan when an admin or station provides a QR code. Use Manual Submission when you need to enter the material, weight, and proof photo yourself. Both methods need internet so your record can be checked and saved.",
+                            type = PopOutMessageType.Info
+                        )
+                    }
+                )
+            }
+
+            item {
+                DepositMethodLabel(
+                    title = "Method 1: QR Code Deposit",
+                    subtitle = "Fastest option when a station or admin gives you a valid QR code."
+                )
+                Spacer(Modifier.height(10.dp))
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    ScanStationCard(
+                        enabled = !isOffline,
+                        onClick = { navController.navigate("qr_scanner") }
+                    )
+                    if (isOffline) {
+                        OfflineDepositMask(
+                            message = "QR deposit needs internet.",
+                            modifier = Modifier.matchParentSize(),
+                            onClick = {
+                                popOutMessage = offlineDepositMessage()
+                            }
+                        )
+                    }
+                }
+            }
+
+            item {
+                DepositMethodLabel(
+                    title = "Method 2: Manual Submission",
+                    subtitle = "Enter your material, weight, and proof photo for admin review."
+                )
+                Spacer(Modifier.height(10.dp))
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    SubmitDepositFormCard(
+                        selectedMat = selectedMat,
+                        expanded = expanded,
+                        weight = weight,
+                        isSubmitting = isSubmitting,
+                        proofPhotoUri = proofPhotoUri,
+                        proofPhotoBitmap = proofPhotoBitmap,
+                        showProofPhotoError = showProofPhotoRequired,
+                        pointRates = pointRates,
+                        ratesLoaded = ratesLoaded,
+                        ratesLoadFailed = ratesLoadFailed,
+                        onExpandedChange = { expanded = it },
+                        onMaterialSelected = { selectedMat = it; expanded = false },
+                        onProofPhotoClick = { showPhotoSourceDialog = true },
+                        onProofPhotoRemove = {
+                            proofPhotoUri = null
+                            proofPhotoBitmap = null
+                            showProofPhotoRequired = false
+                        },
+                        onWeightChange = { input ->
+                            if (input.matches(Regex("^\\d*\\.?\\d*$"))) {
+                                weight = input
+                            }
+                        },
+                        onSubmit = submitDeposit
+                    )
+                    if (isOffline) {
+                        OfflineDepositMask(
+                            message = "Manual submission needs internet.",
+                            modifier = Modifier.matchParentSize(),
+                            onClick = {
+                                popOutMessage = offlineDepositMessage()
+                            }
+                        )
+                    }
+                }
             }
 
             item {
@@ -329,10 +404,11 @@ fun SubmitRecyclingScreen(navController: NavController, viewModel: MainViewModel
             }
         }
     }
+    }
 }
 
 @Composable
-private fun SubmitTopBar(onProfileClick: () -> Unit) {
+private fun SubmitTopBar(connectionMode: ConnectionUiMode, onMenuClick: () -> Unit, onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -341,7 +417,7 @@ private fun SubmitTopBar(onProfileClick: () -> Unit) {
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            IconButton(onClick = { }) {
+            IconButton(onClick = onMenuClick) {
                 Icon(Icons.Default.Menu, contentDescription = "Menu", tint = Color(0xFF006B1B))
             }
             Text(
@@ -351,26 +427,156 @@ private fun SubmitTopBar(onProfileClick: () -> Unit) {
                 fontWeight = FontWeight.ExtraBold
             )
         }
-        Surface(
-            modifier = Modifier
-                .size(42.dp)
-                .clickable { onProfileClick() },
-            shape = CircleShape,
-            color = Color(0xFFE6E9E7),
-            border = BorderStroke(2.dp, Color(0x1A006B1B))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.Person,
-                contentDescription = "Profile",
-                tint = Color(0xFF006B1B),
-                modifier = Modifier.padding(9.dp)
-            )
+            ConnectionModeChip(connectionMode)
+            Surface(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clickable { onProfileClick() },
+                shape = CircleShape,
+                color = Color(0xFFE6E9E7),
+                border = BorderStroke(2.dp, Color(0x1A006B1B))
+            ) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = "Profile",
+                    tint = Color(0xFF006B1B),
+                    modifier = Modifier.padding(9.dp)
+                )
+            }
+        }
+    }
+}
+
+private fun offlineDepositMessage() = AppPopOutMessage(
+    title = "Internet Required",
+    message = "Please reconnect to the internet before making a recycling deposit. You can still view cached pages while offline.",
+    type = PopOutMessageType.Info
+)
+
+@Composable
+private fun DepositMethodIntroCard(onInfoClick: () -> Unit) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
+        border = BorderStroke(1.dp, Color(0xFFE5EAE6))
+    ) {
+        Row(
+            modifier = Modifier.padding(20.dp),
+            horizontalArrangement = Arrangement.spacedBy(14.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(
+                modifier = Modifier.size(46.dp),
+                shape = CircleShape,
+                color = Color(0xFFE6F6E9)
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Recycling,
+                    contentDescription = null,
+                    tint = Color(0xFF006B1B),
+                    modifier = Modifier.padding(11.dp)
+                )
+            }
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                Text(
+                    text = "Choose a Deposit Method",
+                    color = Color(0xFF1A1C1A),
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.ExtraBold
+                )
+                Text(
+                    text = "Scan a QR code for station deposits, or submit the details manually with proof.",
+                    color = Color(0xFF6D7772),
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp
+                )
+            }
+            IconButton(onClick = onInfoClick, modifier = Modifier.size(38.dp)) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = "Deposit method information",
+                    tint = Color(0xFF006B1B)
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun ScanStationCard(onClick: () -> Unit) {
+private fun DepositMethodLabel(title: String, subtitle: String) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Text(
+            text = title,
+            color = Color(0xFF006B1B),
+            fontSize = 15.sp,
+            fontWeight = FontWeight.ExtraBold
+        )
+        Text(
+            text = subtitle,
+            color = Color(0xFF6D7772),
+            fontSize = 12.sp,
+            lineHeight = 17.sp
+        )
+    }
+}
+
+@Composable
+private fun OfflineDepositMask(message: String, modifier: Modifier = Modifier, onClick: () -> Unit) {
+    Surface(
+        modifier = modifier
+            .clip(RoundedCornerShape(32.dp))
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(32.dp),
+        color = Color.White.copy(alpha = 0.78f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.84f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(Color(0xBFF5F7F5)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.WifiOff,
+                    contentDescription = null,
+                    tint = Color(0xFF6E7772),
+                    modifier = Modifier.size(34.dp)
+                )
+                Spacer(Modifier.height(10.dp))
+                Text(
+                    text = "OFFLINE MODE",
+                    color = Color(0xFF3C4540),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.sp
+                )
+                Text(
+                    text = message,
+                    color = Color(0xFF6E7772),
+                    fontSize = 11.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ScanStationCard(enabled: Boolean = true, onClick: () -> Unit) {
     val borderColor = Color(0x5543A047)
     Card(
         modifier = Modifier
@@ -386,7 +592,7 @@ private fun ScanStationCard(onClick: () -> Unit) {
                     cornerRadius = androidx.compose.ui.geometry.CornerRadius(32.dp.toPx())
                 )
             }
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         shape = RoundedCornerShape(32.dp),
         colors = CardDefaults.cardColors(containerColor = Color.White),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -436,6 +642,9 @@ private fun SubmitDepositFormCard(
     proofPhotoUri: Uri?,
     proofPhotoBitmap: Bitmap?,
     showProofPhotoError: Boolean,
+    pointRates: Map<String, Int>,
+    ratesLoaded: Boolean,
+    ratesLoadFailed: Boolean,
     onExpandedChange: (Boolean) -> Unit,
     onMaterialSelected: (String) -> Unit,
     onWeightChange: (String) -> Unit,
@@ -470,13 +679,31 @@ private fun SubmitDepositFormCard(
                         singleLine = true
                     )
                     ExposedDropdownMenu(expanded = expanded, onDismissRequest = { onExpandedChange(false) }) {
-                        POINT_RATES.forEach { (material, rate) ->
+                        val materialNames = (pointRates.keys + POINT_RATES.keys).sorted()
+                        materialNames.forEach { material ->
+                            val rate = pointRates[material]
+                            val rateText = when {
+                                rate != null -> "$rate pts/kg"
+                                !ratesLoaded -> "loading rate"
+                                else -> "rate unavailable"
+                            }
                             DropdownMenuItem(
-                                text = { Text("$material ($rate pts/kg)") },
+                                text = { Text("$material ($rateText)") },
                                 onClick = { onMaterialSelected(material) }
                             )
                         }
                     }
+                }
+                if (ratesLoadFailed) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        text = "Point rates could not be loaded from the backend. Please check with admin before submitting.",
+                        color = Color(0xFFE67E22),
+                        fontSize = 11.sp,
+                        lineHeight = 15.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(start = 4.dp)
+                    )
                 }
             }
 

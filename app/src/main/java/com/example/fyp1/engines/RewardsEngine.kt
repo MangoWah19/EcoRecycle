@@ -168,19 +168,19 @@ class RewardsEngine(private val supabaseClient: Any) {
      * Called when the physical reward is confirmed as collected (admin or QR scan).
      * Only a redemption currently in "claimed" state can be moved to "redeemed".
      */
-    suspend fun markAsRedeemed(redemptionId: Long): Boolean {
+    suspend fun markAsRedeemed(redemptionId: String): Boolean {
         return try {
             val redemption = supabase.postgrest["redemptions"]
                 .select { filter { eq("id", redemptionId) } }
                 .decodeSingleOrNull<Redemption>()
 
-            // Guard: only "claimed" redemptions can be marked as redeemed
-            if (redemption?.status != "claimed") return false
+            // Legacy Supabase-only guard. Express backend now uses RESERVED -> COMPLETED.
+            if (!redemption?.status.equals("RESERVED", ignoreCase = true)) return false
 
             supabase.postgrest["redemptions"].update(
                 mapOf(
-                    "status" to "redeemed",
-                    "claimed_at" to Instant.now().toString()
+                    "status" to "COMPLETED",
+                    "completed_at" to Instant.now().toString()
                 )
             ) {
                 filter { eq("id", redemptionId) }
@@ -204,7 +204,7 @@ class RewardsEngine(private val supabaseClient: Any) {
             ) {
                 filter {
                     eq("user_id", userId)
-                    eq("status", "claimed")
+                    eq("status", "RESERVED")
                     lt("expires_at", now)
                 }
             }
@@ -224,8 +224,8 @@ class RewardsEngine(private val supabaseClient: Any) {
                 reward_id = reward.id,
                 item_name = reward.name,
                 points_spent = reward.points_required,
-                status = "claimed",
-                claimed_at = Instant.now().toString(),
+                status = "RESERVED",
+                reserved_at = Instant.now().toString(),
                 expires_at = expiryDate
             )
 
@@ -257,7 +257,7 @@ class RewardsEngine(private val supabaseClient: Any) {
         }
     }
 
-    private suspend fun decreaseRewardStock(rewardId: Int): Boolean {
+    private suspend fun decreaseRewardStock(rewardId: String): Boolean {
         return try {
             val reward = supabase.postgrest["rewards_catalog"]
                 .select { filter { eq("id", rewardId) } }
@@ -277,10 +277,10 @@ class RewardsEngine(private val supabaseClient: Any) {
         }
     }
 
-    private suspend fun markRedemptionCompleted(redemptionId: Long): Boolean {
+    private suspend fun markRedemptionCompleted(redemptionId: String): Boolean {
         return try {
             supabase.postgrest["redemptions"].update(
-                mapOf("status" to "completed")
+                mapOf("status" to "COMPLETED")
             ) {
                 filter { eq("id", redemptionId) }
             }
@@ -290,7 +290,7 @@ class RewardsEngine(private val supabaseClient: Any) {
         }
     }
 
-    private suspend fun recordRedemptionCooldown(userId: String, rewardId: Int) {
+    private suspend fun recordRedemptionCooldown(userId: String, rewardId: String) {
         try {
             val existing = supabase.postgrest["redemption_cooldowns"]
                 .select {
@@ -328,7 +328,7 @@ class RewardsEngine(private val supabaseClient: Any) {
 
     private suspend fun countUserRedemptionsOfReward(
         userId: String,
-        rewardId: Int,
+        rewardId: String,
         hoursBack: Int
     ): Int {
         return try {
@@ -367,7 +367,7 @@ class RewardsEngine(private val supabaseClient: Any) {
         }
     }
 
-    private suspend fun getRewardFromDb(rewardId: Int): Reward? {
+    private suspend fun getRewardFromDb(rewardId: String): Reward? {
         return try {
             supabase.postgrest["rewards_catalog"]
                 .select { filter { eq("id", rewardId) } }
@@ -377,7 +377,7 @@ class RewardsEngine(private val supabaseClient: Any) {
         }
     }
 
-    private suspend fun getRedemptionFromDb(redemptionId: Long): Redemption? {
+    private suspend fun getRedemptionFromDb(redemptionId: String): Redemption? {
         return try {
             supabase.postgrest["redemptions"]
                 .select { filter { eq("id", redemptionId) } }
@@ -447,7 +447,7 @@ class RewardsEngine(private val supabaseClient: Any) {
         checkRedemptionAchievements(userId)
     }
 
-    private suspend fun getRedemptionCooldown(userId: String, rewardId: Int): RedemptionCooldown? {
+    private suspend fun getRedemptionCooldown(userId: String, rewardId: String): RedemptionCooldown? {
         return try {
             supabase.postgrest["redemption_cooldowns"]
                 .select {

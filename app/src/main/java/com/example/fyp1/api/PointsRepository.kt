@@ -1,6 +1,8 @@
 package com.example.fyp1.api
 
 import android.content.Context
+import com.example.fyp1.offline.OfflineDatabase
+import com.example.fyp1.offline.toBackendPointsEvent
 import com.google.gson.Gson
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
@@ -13,6 +15,7 @@ import java.util.concurrent.TimeUnit
 class PointsRepository(context: Context) {
     private val appContext = context.applicationContext
     private val sessionManager = AuthSessionManager(appContext)
+    private val offlineDao = OfflineDatabase.get(appContext).offlineDao()
     private val gson = Gson()
 
     private val api: PointsApiService by lazy {
@@ -37,8 +40,14 @@ class PointsRepository(context: Context) {
 
     suspend fun getMyPoints(): AuthResult<PointsData> =
         runCatching {
-            handleResponse(api.getMyPoints()) { it.data }
-        }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
+            when (val result = handleResponse(api.getMyPoints()) { it.data }) {
+                is AuthResult.Success -> {
+                    offlineDao.replacePointLedger(result.value)
+                    result
+                }
+                is AuthResult.Error -> result
+            }
+        }.getOrElse { cachedPointsOrError(networkErrorMessage(it)) }
 
     private fun authInterceptor(): Interceptor = Interceptor { chain ->
         val token = sessionManager.getToken()
@@ -77,10 +86,26 @@ class PointsRepository(context: Context) {
 
     private fun networkErrorMessage(error: Throwable): String {
         return when (error) {
-            is java.net.ConnectException -> "Connection Error: Could not reach the backend."
-            is java.net.SocketTimeoutException -> "Connection Error: The backend took too long to respond."
-            is java.net.UnknownHostException -> "Connection Error: Could not resolve backend host."
-            else -> "Unexpected Error: ${error.localizedMessage ?: "Please try again."}"
+            is java.net.ConnectException -> "Could not reach the EcoRecycle server. Please check your internet connection."
+            is java.net.SocketTimeoutException -> "EcoRecycle is taking too long to respond. Please try again shortly."
+            is java.net.UnknownHostException -> "Could not find the EcoRecycle server. Please check your internet connection."
+            else -> "Something went wrong. Please try again."
+        }
+    }
+
+    private suspend fun cachedPointsOrError(error: String): AuthResult<PointsData> {
+        val balance = offlineDao.getCachedPointBalance()
+        val events = offlineDao.getCachedPointEvents().map { it.toBackendPointsEvent() }
+        return if (balance != null || events.isNotEmpty()) {
+            AuthResult.Success(
+                PointsData(
+                    events = events,
+                    total = balance?.total ?: 0,
+                    lifetimeTotal = balance?.lifetimeTotal ?: 0
+                )
+            )
+        } else {
+            AuthResult.Error(error)
         }
     }
 }

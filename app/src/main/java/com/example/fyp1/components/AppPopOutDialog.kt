@@ -43,13 +43,16 @@ data class AppPopOutMessage(
     val title: String,
     val message: String,
     val type: PopOutMessageType = PopOutMessageType.Error,
-    val buttonText: String = "Got it"
+    val buttonText: String = "Got it",
+    val secondaryButtonText: String? = null
 )
 
 @Composable
 fun AppPopOutDialog(
     message: AppPopOutMessage?,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onPrimary: (() -> Unit)? = null,
+    onSecondary: (() -> Unit)? = null
 ) {
     if (message == null) return
 
@@ -112,20 +115,54 @@ fun AppPopOutDialog(
                     textAlign = TextAlign.Center
                 )
                 Spacer(Modifier.height(28.dp))
-                Button(
-                    onClick = onDismiss,
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(54.dp),
-                    shape = CircleShape,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF43A047))
-                ) {
-                    Text(
-                        text = message.buttonText,
-                        color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
+                if (message.secondaryButtonText != null && onSecondary != null) {
+                    Button(
+                        onClick = onPrimary ?: onDismiss,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF43A047))
+                    ) {
+                        Text(
+                            text = message.buttonText,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                    Button(
+                        onClick = onSecondary,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFE7F2EA))
+                    ) {
+                        Text(
+                            text = message.secondaryButtonText,
+                            color = Color(0xFF006B1B),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
+                } else {
+                    Button(
+                        onClick = onPrimary ?: onDismiss,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(54.dp),
+                        shape = CircleShape,
+                        colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF43A047))
+                    ) {
+                        Text(
+                            text = message.buttonText,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.ExtraBold
+                        )
+                    }
                 }
             }
         }

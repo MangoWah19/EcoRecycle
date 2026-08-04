@@ -4,6 +4,7 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -60,15 +61,19 @@ import com.example.fyp1.api.BackendMission
 import com.example.fyp1.api.BackendSubmission
 import com.example.fyp1.api.MissionSelectionCache
 import com.example.fyp1.api.MissionRepository
+import com.example.fyp1.components.EcoNavigationDrawer
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
+import com.example.fyp1.offline.ConnectionModeChip
+import com.example.fyp1.offline.rememberConnectionUiMode
 import java.time.Instant
 import java.time.format.DateTimeParseException
 
-private val MissionTabs = listOf("All", "Available to Join", "Ongoing", "Pending Review", "Approved Proofs", "Completed Mission")
+private val MissionTabs = listOf("All", "Available to Join", "Ongoing", "Pending Upload", "Pending Review", "Approved Proofs", "Completed Mission")
 
 private enum class MissionUiStatus {
     AvailableToJoin,
     Ongoing,
+    PendingUpload,
     Pending,
     PendingReview,
     ApprovedProofs,
@@ -80,7 +85,8 @@ private enum class MissionUiStatus {
 @Composable
 fun MissionsScreen(navController: NavController, viewModel: MainViewModel) {
     val context = LocalContext.current
-    LaunchedEffect(Unit) { viewModel.fetchUserData() }
+    val connectionMode = rememberConnectionUiMode()
+    LaunchedEffect(Unit) { viewModel.fetchUserData(context) }
 
     val missionRepository = remember { MissionRepository(context) }
     var backendMissions by remember { mutableStateOf<List<BackendMission>>(emptyList()) }
@@ -120,6 +126,7 @@ fun MissionsScreen(navController: NavController, viewModel: MainViewModel) {
         isLoadingMissions = false
     }
 
+    EcoNavigationDrawer(navController = navController) { openDrawer ->
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -130,7 +137,7 @@ fun MissionsScreen(navController: NavController, viewModel: MainViewModel) {
             contentPadding = PaddingValues(top = 0.dp, bottom = padding.calculateBottomPadding()),
             verticalArrangement = Arrangement.spacedBy(18.dp)
         ) {
-            item { MissionTopBar(onMenuClick = { }, onProfileClick = { navController.navigate("profile") }) }
+            item { MissionTopBar(connectionMode = connectionMode, onMenuClick = openDrawer, onProfileClick = { navController.navigate("profile") }) }
             item { MissionHeader() }
             item {
                 MissionSearchAndFilters(
@@ -160,7 +167,8 @@ fun MissionsScreen(navController: NavController, viewModel: MainViewModel) {
                     }
                 )
             }
-        }
+    }
+    }
     }
 }
 
@@ -202,26 +210,13 @@ private fun BackendMissionCard(mission: BackendMission, status: MissionUiStatus,
 private fun MissionCardHero(mission: BackendMission, onClick: () -> Unit) {
     val imageRequest = rememberEcoImageRequest(mission.imageUrl)
     Box(modifier = Modifier.fillMaxWidth().height(180.dp).clickable(onClick = onClick)) {
-        if (imageRequest != null) {
-            AsyncImage(
-                model = imageRequest,
-                contentDescription = mission.title,
-                modifier = Modifier.fillMaxSize(),
-                contentScale = ContentScale.Crop
-            )
-        } else {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(Brush.linearGradient(listOf(Color(0xFF245F35), Color(0xFF008A95))))
-            )
-            Icon(
-                Icons.Default.Eco,
-                contentDescription = null,
-                tint = Color.White.copy(alpha = 0.34f),
-                modifier = Modifier.align(Alignment.Center).size(86.dp)
-            )
-        }
+        EcoLoadingImage(
+            model = imageRequest,
+            contentDescription = mission.title,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            fallbackIcon = Icons.Default.Eco
+        )
         Box(
             modifier = Modifier
                 .fillMaxSize()
@@ -267,7 +262,7 @@ private fun MissionInfoMessage(message: String) {
 }
 
 @Composable
-private fun MissionTopBar(onMenuClick: () -> Unit, onProfileClick: () -> Unit) {
+private fun MissionTopBar(connectionMode: com.example.fyp1.offline.ConnectionUiMode, onMenuClick: () -> Unit, onProfileClick: () -> Unit) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(top = 14.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -279,13 +274,25 @@ private fun MissionTopBar(onMenuClick: () -> Unit, onProfileClick: () -> Unit) {
             }
             Text("Eco-Recycle", color = MissionPrimary, fontSize = 17.sp, fontWeight = FontWeight.ExtraBold)
         }
-        Surface(
-            modifier = Modifier.size(42.dp).clickable(onClick = onProfileClick),
-            shape = CircleShape,
-            color = Color(0xFFE6E9E7),
-            border = BorderStroke(2.dp, Color(0x1A006B1B))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Default.Person, contentDescription = "Profile", tint = MissionPrimary, modifier = Modifier.padding(9.dp))
+            ConnectionModeChip(connectionMode)
+            Surface(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null,
+                        onClick = onProfileClick
+                    ),
+                shape = CircleShape,
+                color = Color(0xFFE6E9E7),
+                border = BorderStroke(2.dp, Color(0x1A006B1B))
+            ) {
+                Icon(Icons.Default.Person, contentDescription = "Profile", tint = MissionPrimary, modifier = Modifier.padding(9.dp))
+            }
         }
     }
 }
@@ -385,6 +392,7 @@ private fun missionStatusFor(mission: BackendMission, submissions: List<BackendS
 
     return when (submissions.latestForMission(mission.id)?.status?.uppercase()) {
         "ONGOING" -> MissionUiStatus.Ongoing
+        "PENDING_UPLOAD", "UPLOADING", "FAILED_UPLOAD" -> MissionUiStatus.PendingUpload
         "PENDING_REVIEW" -> MissionUiStatus.PendingReview
         "APPROVED" -> MissionUiStatus.ApprovedProofs
         "REJECTED" -> MissionUiStatus.Rejected
@@ -406,6 +414,7 @@ private fun missionMatchesTab(status: MissionUiStatus, tab: String): Boolean = w
     "All" -> true
     "Available to Join" -> status == MissionUiStatus.AvailableToJoin
     "Ongoing" -> status == MissionUiStatus.Ongoing
+    "Pending Upload" -> status == MissionUiStatus.PendingUpload
     "Pending Review" -> status == MissionUiStatus.PendingReview
     "Approved Proofs" -> status == MissionUiStatus.ApprovedProofs
     "Completed Mission" -> status == MissionUiStatus.Completed

@@ -418,12 +418,11 @@ fun LeaderboardRow(rank: Int, entry: LeaderboardEntry) {
 
 @Composable
 fun RedemptionHistoryRow(redemption: Redemption) {
-    val (stateLabel, stateColor) = when (redemption.status) {
-        "claimed"   -> Pair("CLAIMED",   Color(0xFFEF6C00))
-        "redeemed"  -> Pair("REDEEMED",  Color(0xFF2E7D32))
-        "expired"   -> Pair("EXPIRED",   Color(0xFFC62828))
-        "completed" -> Pair("COMPLETED", Color(0xFF2E7D32))
-        else        -> Pair(redemption.status.uppercase(), Color.Gray)
+    val (stateLabel, stateColor) = when (redemption.status.uppercase()) {
+        "RESERVED" -> Pair("RESERVED", Color(0xFFEF6C00))
+        "COMPLETED" -> Pair("COMPLETED", Color(0xFF2E7D32))
+        "CANCELLED" -> Pair("CANCELLED", Color(0xFFC62828))
+        else -> Pair(redemption.status.uppercase(), Color.Gray)
     }
     Card(
         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),

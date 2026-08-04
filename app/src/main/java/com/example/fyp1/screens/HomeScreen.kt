@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -16,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -31,6 +31,7 @@ import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.WifiOff
 import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -46,6 +47,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.blur
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
@@ -55,15 +58,22 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import com.example.fyp1.MainViewModel
 import com.example.fyp1.RecyclingLog
+import com.example.fyp1.components.EcoNavigationDrawer
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
+import com.example.fyp1.offline.ConnectionModeChip
+import com.example.fyp1.offline.ConnectionUiMode
+import com.example.fyp1.offline.rememberConnectionUiMode
 
 @Composable
 fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
     val context = LocalContext.current
+    val connectionMode = rememberConnectionUiMode()
+    val isOffline = connectionMode == ConnectionUiMode.Offline
     LaunchedEffect(Unit) {
         viewModel.refreshHomeProfileData(context)
     }
 
+    EcoNavigationDrawer(navController = navController) { openDrawer ->
     FloatingBottomNavigationScaffold(navController = navController) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -79,7 +89,8 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
         ) {
             item {
                 HomeTopBar(
-                    onMenuClick = { },
+                    connectionMode = connectionMode,
+                    onMenuClick = openDrawer,
                     onProfileClick = { navController.navigate("profile") }
                 )
             }
@@ -89,6 +100,7 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
                     userName = viewModel.userName,
                     userPoints = viewModel.userPoints,
                     isRefreshing = viewModel.isRefreshing,
+                    isOffline = isOffline,
                     onRefresh = { viewModel.refreshHomeProfileData(context) }
                 )
             }
@@ -96,73 +108,138 @@ fun HomeScreen(navController: NavController, viewModel: MainViewModel) {
             item {
                 SectionLabel("Get Started")
                 Spacer(Modifier.height(14.dp))
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    HomeActionTile(
-                        label = "Scan Now",
-                        icon = Icons.Default.Recycling,
-                        backgroundColor = Color(0xFFEFF8F0),
-                        iconColor = Color(0xFF006B1B),
-                        modifier = Modifier.weight(1f)
+                if (isOffline) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(28.dp))
                     ) {
-                        navController.navigate("submit_recycling")
-                        navController.navigate("qr_scanner")
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .blur(8.dp)
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                HomeActionTile(
+                                    label = "Scan Now",
+                                    icon = Icons.Default.Recycling,
+                                    backgroundColor = Color(0xFFEFF8F0),
+                                    iconColor = Color(0xFF006B1B),
+                                    enabled = false,
+                                    modifier = Modifier.weight(1f)
+                                ) { }
+                                HomeActionTile(
+                                    label = "Rewards",
+                                    icon = Icons.Default.CardGiftcard,
+                                    backgroundColor = Color(0xFFF0FFF4),
+                                    iconColor = Color(0xFF006A38),
+                                    enabled = false,
+                                    modifier = Modifier.weight(1f)
+                                ) { }
+                                HomeActionTile(
+                                    label = "Badges",
+                                    icon = Icons.Default.EmojiEvents,
+                                    backgroundColor = Color(0xFFF0FBFF),
+                                    iconColor = Color(0xFF00656F),
+                                    enabled = false,
+                                    modifier = Modifier.weight(1f)
+                                ) { }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            LeaderboardCard(enabled = false) { }
+                        }
+
+                        OfflineFeatureMask()
                     }
-                    HomeActionTile(
-                        label = "Rewards",
-                        icon = Icons.Default.CardGiftcard,
-                        backgroundColor = Color(0xFFF0FFF4),
-                        iconColor = Color(0xFF006A38),
-                        modifier = Modifier.weight(1f)
-                    ) { navController.navigate("rewards") }
-                    HomeActionTile(
-                        label = "Badges",
-                        icon = Icons.Default.EmojiEvents,
-                        backgroundColor = Color(0xFFF0FBFF),
-                        iconColor = Color(0xFF00656F),
-                        modifier = Modifier.weight(1f)
-                    ) { navController.navigate("achievements") }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        HomeActionTile(
+                            label = "Scan Now",
+                            icon = Icons.Default.Recycling,
+                            backgroundColor = Color(0xFFEFF8F0),
+                            iconColor = Color(0xFF006B1B),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            navController.navigate("submit_recycling")
+                            navController.navigate("qr_scanner")
+                        }
+                        HomeActionTile(
+                            label = "Rewards",
+                            icon = Icons.Default.CardGiftcard,
+                            backgroundColor = Color(0xFFF0FFF4),
+                            iconColor = Color(0xFF006A38),
+                            modifier = Modifier.weight(1f)
+                        ) { navController.navigate("rewards") }
+                        HomeActionTile(
+                            label = "Badges",
+                            icon = Icons.Default.EmojiEvents,
+                            backgroundColor = Color(0xFFF0FBFF),
+                            iconColor = Color(0xFF00656F),
+                            modifier = Modifier.weight(1f)
+                        ) { navController.navigate("achievements") }
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    LeaderboardCard { navController.navigate("leaderboard") }
                 }
-                Spacer(Modifier.height(12.dp))
-                LeaderboardCard { navController.navigate("leaderboard") }
             }
 
             item {
-                Row(
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    SectionLabel("Recent History")
-                    TextButton(onClick = { navController.navigate("recycling_history") }) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        SectionLabel("Recent Recycling History")
+                        TextButton(onClick = {
+                            navController.navigate("profile")
+                            navController.navigate("recycling_history")
+                        }) {
+                            Text(
+                                text = "VIEW ALL",
+                                color = Color(0xFF006B1B),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                letterSpacing = 1.sp
+                            )
+                        }
+                    }
+
+                    if (viewModel.recyclingHistory.isEmpty() && !viewModel.isRefreshing) {
+                        EmptyHistoryCard()
+                    } else {
+                        viewModel.recyclingHistory.take(3).forEach { log ->
+                            RecentHistoryCard(log)
+                        }
                         Text(
-                            text = "VIEW ALL",
-                            color = Color(0xFF006B1B),
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Black,
-                            letterSpacing = 1.sp
+                            text = "Showing your latest 3 records. Tap View All to see full history.",
+                            color = Color(0xFF6E7772),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium,
+                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
                         )
                     }
                 }
             }
 
-            if (viewModel.recyclingHistory.isEmpty() && !viewModel.isRefreshing) {
-                item { EmptyHistoryCard() }
-            }
-
-            items(viewModel.recyclingHistory.take(3)) { log ->
-                RecentHistoryCard(log)
-            }
-
             item { Spacer(Modifier.height(8.dp)) }
-        }
+    }
+    }
     }
 }
 
 @Composable
 private fun HomeTopBar(
+    connectionMode: ConnectionUiMode,
     onMenuClick: () -> Unit,
     onProfileClick: () -> Unit
 ) {
@@ -185,20 +262,26 @@ private fun HomeTopBar(
             )
         }
 
-        Surface(
-            modifier = Modifier
-                .size(42.dp)
-                .clickable { onProfileClick() },
-            shape = CircleShape,
-            color = Color(0xFFE6E9E7),
-            border = BorderStroke(2.dp, Color(0x1A006B1B))
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(
-                Icons.Default.Person,
-                contentDescription = "Profile",
-                tint = Color(0xFF006B1B),
-                modifier = Modifier.padding(9.dp)
-            )
+            ConnectionModeChip(connectionMode)
+            Surface(
+                modifier = Modifier
+                    .size(42.dp)
+                    .clickable { onProfileClick() },
+                shape = CircleShape,
+                color = Color(0xFFE6E9E7),
+                border = BorderStroke(2.dp, Color(0x1A006B1B))
+            ) {
+                Icon(
+                    Icons.Default.Person,
+                    contentDescription = "Profile",
+                    tint = Color(0xFF006B1B),
+                    modifier = Modifier.padding(9.dp)
+                )
+            }
         }
     }
 }
@@ -207,6 +290,7 @@ private fun ImpactPanel(
     userName: String,
     userPoints: Int,
     isRefreshing: Boolean,
+    isOffline: Boolean,
     onRefresh: () -> Unit
 ) {
     Card(
@@ -239,21 +323,21 @@ private fun ImpactPanel(
                 Surface(
                     modifier = Modifier.size(42.dp),
                     shape = CircleShape,
-                    color = Color(0xFFEFF8F0),
-                    border = BorderStroke(1.dp, Color(0xFFE0E9E2))
+                    color = if (isOffline) Color(0xFFE4E7E5) else Color(0xFFEFF8F0),
+                    border = BorderStroke(1.dp, if (isOffline) Color(0xFFD5D9D7) else Color(0xFFE0E9E2))
                 ) {
-                    IconButton(onClick = onRefresh) {
+                    IconButton(onClick = onRefresh, enabled = !isOffline) {
                         if (isRefreshing) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
-                                color = Color(0xFF006B1B),
+                                color = if (isOffline) Color(0xFF8B9290) else Color(0xFF006B1B),
                                 strokeWidth = 2.dp
                             )
                         } else {
                             Icon(
                                 Icons.Default.Refresh,
                                 contentDescription = "Refresh",
-                                tint = Color(0xFF006B1B),
+                                tint = if (isOffline) Color(0xFF9CA3A1) else Color(0xFF006B1B),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -280,16 +364,24 @@ private fun ImpactPanel(
                         fontWeight = FontWeight.Bold,
                         letterSpacing = 1.5.sp
                     )
+                    if (isOffline) {
+                        Text(
+                            text = "Latest points since online",
+                            color = Color(0xFF858D89),
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
                 Surface(
                     modifier = Modifier.size(72.dp),
                     shape = RoundedCornerShape(22.dp),
-                    color = Color(0x1A006B1B)
+                    color = if (isOffline) Color(0xFFE4E7E5) else Color(0x1A006B1B)
                 ) {
                     Icon(
                         Icons.Default.Eco,
                         contentDescription = null,
-                        tint = Color(0xFF006B1B),
+                        tint = if (isOffline) Color(0xFF9CA3A1) else Color(0xFF006B1B),
                         modifier = Modifier.padding(20.dp)
                     )
                 }
@@ -315,13 +407,14 @@ private fun HomeActionTile(
     icon: ImageVector,
     backgroundColor: Color,
     iconColor: Color,
+    enabled: Boolean = true,
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     Card(
         modifier = modifier
             .height(118.dp)
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = backgroundColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 3.dp),
@@ -355,11 +448,11 @@ private fun HomeActionTile(
 }
 
 @Composable
-private fun LeaderboardCard(onClick: () -> Unit) {
+private fun LeaderboardCard(enabled: Boolean = true, onClick: () -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() },
+            .clickable(enabled = enabled) { onClick() },
         shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF1EF)),
         elevation = CardDefaults.cardElevation(defaultElevation = 5.dp),
@@ -395,6 +488,52 @@ private fun LeaderboardCard(onClick: () -> Unit) {
                 )
             }
             Text(text = ">", color = Color(0xFF595C5B), fontSize = 22.sp)
+        }
+    }
+}
+
+@Composable
+private fun BoxScope.OfflineFeatureMask() {
+    Surface(
+        modifier = Modifier
+            .matchParentSize()
+            .clip(RoundedCornerShape(28.dp)),
+        shape = RoundedCornerShape(28.dp),
+        color = Color.White.copy(alpha = 0.46f),
+        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.70f))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .clip(RoundedCornerShape(28.dp))
+                .background(Color(0x8CF5F7F5)),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                Icon(
+                    Icons.Default.WifiOff,
+                    contentDescription = null,
+                    tint = Color(0xFF6E7772),
+                    modifier = Modifier.size(38.dp)
+                )
+                Spacer(Modifier.height(12.dp))
+                Text(
+                    text = "OFFLINE MODE",
+                    color = Color(0xFF3C4540),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    letterSpacing = 1.2.sp
+                )
+                Text(
+                    text = "These actions need internet.",
+                    color = Color(0xFF6E7772),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Medium
+                )
+            }
         }
     }
 }
