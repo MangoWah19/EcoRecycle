@@ -23,6 +23,7 @@ class MissionRepository(context: Context) {
     private val appContext = context.applicationContext
     private val sessionManager = AuthSessionManager(appContext)
     private val offlineDao = OfflineDatabase.get(appContext).offlineDao()
+    private val notificationRepository = NotificationRepository(appContext)
     private val gson = Gson()
 
     private val api: MissionApiService by lazy {
@@ -71,6 +72,7 @@ class MissionRepository(context: Context) {
         runCatching {
             when (val result = handleResponse(api.joinMission(id)) { it.data.submission }) {
                 is AuthResult.Success -> {
+                    notificationRepository.notifyMissionSubmissionChanges(listOf(result.value))
                     offlineDao.upsertSubmission(result.value.toCachedEntity())
                     result
                 }
@@ -96,6 +98,7 @@ class MissionRepository(context: Context) {
         runCatching {
             when (val result = handleResponse(api.submitMission(id, request)) { it.data.submission }) {
                 is AuthResult.Success -> {
+                    notificationRepository.notifyMissionSubmissionChanges(listOf(result.value))
                     offlineDao.upsertSubmission(result.value.toCachedEntity())
                     result
                 }
@@ -107,6 +110,7 @@ class MissionRepository(context: Context) {
         runCatching {
             when (val result = handleResponse(api.getMySubmissions()) { it.data.submissions }) {
                 is AuthResult.Success -> {
+                    notificationRepository.notifyMissionSubmissionChanges(result.value)
                     offlineDao.upsertSubmissions(result.value.map { it.toCachedEntity() })
                     AuthResult.Success(withPendingSubmissions(result.value))
                 }
@@ -162,7 +166,7 @@ class MissionRepository(context: Context) {
         return runCatching {
             response.errorBody()?.string()?.let { raw ->
                 if (raw.contains("Cannot POST", ignoreCase = true) || raw.contains("Cannot PATCH", ignoreCase = true)) {
-                    return "Backend endpoint is not available yet. Please rebuild the backend container."
+                    return "This feature is not available on the current EcoRecycle server yet."
                 }
                 gson.fromJson(raw, ApiErrorEnvelope::class.java)?.error?.message
             }
@@ -171,9 +175,9 @@ class MissionRepository(context: Context) {
 
     private fun networkErrorMessage(error: Throwable): String {
         return when (error) {
-            is java.net.ConnectException -> "Connection Error: Could not reach the backend."
-            is java.net.SocketTimeoutException -> "Connection Error: The backend took too long to respond."
-            is java.net.UnknownHostException -> "Connection Error: Could not resolve backend host."
+            is java.net.ConnectException -> "Connection Error: Could not reach EcoRecycle services. Please check your connection."
+            is java.net.SocketTimeoutException -> "Connection Error: EcoRecycle services are taking too long to respond."
+            is java.net.UnknownHostException -> "Connection Error: Could not find EcoRecycle services. Please check your connection."
             else -> "Unexpected Error: ${error.localizedMessage ?: "Please try again."}"
         }
     }

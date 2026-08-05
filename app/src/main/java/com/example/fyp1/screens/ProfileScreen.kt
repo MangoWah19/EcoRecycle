@@ -27,7 +27,6 @@ import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Menu
-import androidx.compose.material.icons.filled.Notifications
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.ReceiptLong
@@ -61,6 +60,7 @@ import com.example.fyp1.components.AppPopOutDialog
 import com.example.fyp1.components.AppPopOutMessage
 import com.example.fyp1.components.EcoNavigationDrawer
 import com.example.fyp1.components.FloatingBottomNavigationScaffold
+import com.example.fyp1.components.NotificationBellButton
 import com.example.fyp1.components.PopOutMessageType
 import com.example.fyp1.offline.ConnectionModeChip
 import com.example.fyp1.offline.ConnectionUiMode
@@ -96,7 +96,13 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
             verticalArrangement = Arrangement.spacedBy(18.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            item { ProfileTopBar(connectionMode = connectionMode, onMenuClick = openDrawer) }
+            item {
+                ProfileTopBar(
+                    connectionMode = connectionMode,
+                    onMenuClick = openDrawer,
+                    onNotificationsClick = { navController.navigate("notifications") }
+                )
+            }
 
             item {
                 ProfileIdentity(
@@ -184,7 +190,11 @@ fun ProfileScreen(navController: NavController, viewModel: MainViewModel) {
 }
 
 @Composable
-private fun ProfileTopBar(connectionMode: ConnectionUiMode, onMenuClick: () -> Unit) {
+private fun ProfileTopBar(
+    connectionMode: ConnectionUiMode,
+    onMenuClick: () -> Unit,
+    onNotificationsClick: () -> Unit
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -212,25 +222,7 @@ private fun ProfileTopBar(connectionMode: ConnectionUiMode, onMenuClick: () -> U
             verticalAlignment = Alignment.CenterVertically
         ) {
             ConnectionModeChip(connectionMode)
-            Surface(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null,
-                        onClick = { }
-                    ),
-                shape = CircleShape,
-                color = Color(0xFFE6E9E7),
-                border = BorderStroke(2.dp, Color(0x1A006B1B))
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Notifications,
-                    contentDescription = "Notifications",
-                    tint = Color(0xFF006B1B),
-                    modifier = Modifier.padding(9.dp)
-                )
-            }
+            NotificationBellButton(onClick = onNotificationsClick)
         }
     }
 }

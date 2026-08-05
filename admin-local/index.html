@@ -131,6 +131,41 @@
       border-radius: 4px;
     }
     .actions { display: flex; gap: 8px; flex-wrap: wrap; }
+    .mini-button {
+      padding: 7px 9px;
+      font-size: 12px;
+    }
+    .content-block-list {
+      display: grid;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+    .content-block-card {
+      display: grid;
+      gap: 8px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdfb;
+    }
+    .content-block-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 8px;
+    }
+    .content-block-card label {
+      margin-bottom: 4px;
+    }
+    .review-box {
+      display: grid;
+      gap: 8px;
+      min-width: 220px;
+    }
+    .review-box textarea {
+      min-height: 58px;
+      font-size: 12px;
+    }
     .checkbox-grid {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -257,8 +292,10 @@
         <label>Upload Content Image</label>
         <input id="contentImageFile" type="file" accept="image/png,image/jpeg,image/webp" />
         <button class="secondary" onclick="uploadContentImage()">Upload Image</button>
-        <label style="margin-top: 10px">Content Blocks JSON</label>
-        <textarea id="contentBlocks" class="codebox" placeholder='[{"type":"heading","text":"Section title"},{"type":"paragraph","text":"Article paragraph..."}]'></textarea>
+        <label style="margin-top: 10px">Article Blocks</label>
+        <div id="contentBlockBuilder" class="content-block-list"></div>
+        <button class="secondary" onclick="addContentBlock()">+ Add Block</button>
+        <p class="muted">Each block can have a section title, paragraph content, and an optional image URL. The page converts these into the backend JSON format for you.</p>
         <button onclick="createContent()">Create Content</button>
         <p class="muted">The Android app still shows the hard-coded “Did You Know?” card for every content detail page.</p>
       </section>
@@ -304,6 +341,23 @@
           </div>
         </div>
         <div id="submissions"></div>
+      </section>
+
+      <section>
+        <h2>Mission Submissions</h2>
+        <div class="toolbar">
+          <div>
+            <label>Status</label>
+            <select id="missionSubmissionStatus" onchange="loadMissionSubmissions()">
+              <option value="PENDING_REVIEW" selected>Pending Review</option>
+              <option value="">All</option>
+              <option value="ONGOING">Ongoing</option>
+              <option value="APPROVED">Approved</option>
+              <option value="REJECTED">Rejected</option>
+            </select>
+          </div>
+        </div>
+        <div id="missionSubmissions"></div>
       </section>
 
       <div class="grid">
@@ -370,6 +424,7 @@
       "safety",
       "general"
     ];
+    let contentBlockCounter = 0;
 
     function baseUrl() {
       const input = document.getElementById("apiBase");
@@ -511,6 +566,7 @@
         loadRates(),
         loadQrCodes(),
         loadRecyclingSubmissions(),
+        loadMissionSubmissions(),
         loadRewards(),
         loadRedemptions(),
         loadLeaderboard(),
@@ -547,6 +603,67 @@
       });
     }
 
+    function addContentBlock(block = {}) {
+      const builder = document.getElementById("contentBlockBuilder");
+      if (!builder) return;
+
+      const id = `contentBlock_${++contentBlockCounter}`;
+      builder.insertAdjacentHTML("beforeend", `
+        <div class="content-block-card" data-content-block-id="${id}">
+          <div class="content-block-head">
+            <strong>Article Block</strong>
+            <button class="secondary mini-button" onclick="removeContentBlock('${id}')">Remove</button>
+          </div>
+          <div>
+            <label>Section Title</label>
+            <input id="${id}_title" placeholder="Example: Why plastic sorting matters" value="${escapeHtml(block.title || "")}" />
+          </div>
+          <div>
+            <label>Content</label>
+            <textarea id="${id}_content" placeholder="Write the article paragraph here.">${escapeHtml(block.content || "")}</textarea>
+          </div>
+          <div>
+            <label>Image URL</label>
+            <input id="${id}_imageUrl" placeholder="Optional image URL for this section" value="${escapeHtml(block.imageUrl || "")}" />
+          </div>
+        </div>
+      `);
+    }
+
+    function removeContentBlock(id) {
+      document.querySelector(`[data-content-block-id="${id}"]`)?.remove();
+    }
+
+    function resetContentBlocks(blocks = []) {
+      const builder = document.getElementById("contentBlockBuilder");
+      if (!builder) return;
+      builder.innerHTML = "";
+      contentBlockCounter = 0;
+      (blocks.length ? blocks : [{ title: "", content: "", imageUrl: "" }]).forEach(addContentBlock);
+    }
+
+    function collectContentBlocks() {
+      const blocks = [];
+      document.querySelectorAll("[data-content-block-id]").forEach(card => {
+        const id = card.dataset.contentBlockId;
+        const title = document.getElementById(`${id}_title`)?.value.trim() || "";
+        const content = document.getElementById(`${id}_content`)?.value.trim() || "";
+        const imageUrl = document.getElementById(`${id}_imageUrl`)?.value.trim() || "";
+
+        if (title) blocks.push({ type: "heading", text: title });
+        if (content) blocks.push({ type: "paragraph", text: content });
+        if (imageUrl) blocks.push({ type: "image", url: imageUrl, alt: title || "Article image" });
+      });
+      return blocks;
+    }
+
+    function contentBlocksToBody(blocks) {
+      return blocks
+        .map(block => block.text || block.alt || "")
+        .filter(Boolean)
+        .join("\n\n");
+    }
+
     function fillContentSample(type) {
       initContentControls();
       const samples = {
@@ -556,13 +673,22 @@
           body: "Plastic recycling starts before the item reaches the bin. Clean containers, remove leftover liquid, and check whether the plastic type is accepted by your local recycling program.",
           estimatedReadMinutes: 5,
           tags: ["plastic", "sorting", "general"],
-          contentBlocks: [
-            { type: "heading", text: "Check the Plastic Item" },
-            { type: "paragraph", text: "Look for recycling labels and avoid mixing heavily contaminated plastic with clean recyclable items." },
-            { type: "heading", text: "Rinse and Dry" },
-            { type: "paragraph", text: "A quick rinse helps reduce odor and prevents food residue from affecting other recyclables." },
-            { type: "heading", text: "Sort Before Disposal" },
-            { type: "paragraph", text: "Place clean plastic bottles and containers into the correct recycling stream instead of general waste." }
+          blocks: [
+            {
+              title: "Check the Plastic Item",
+              content: "Look for recycling labels and avoid mixing heavily contaminated plastic with clean recyclable items.",
+              imageUrl: ""
+            },
+            {
+              title: "Rinse and Dry",
+              content: "A quick rinse helps reduce odor and prevents food residue from affecting other recyclables.",
+              imageUrl: ""
+            },
+            {
+              title: "Sort Before Disposal",
+              content: "Place clean plastic bottles and containers into the correct recycling stream instead of general waste.",
+              imageUrl: ""
+            }
           ]
         },
         safety: {
@@ -571,13 +697,22 @@
           body: "Safe recycling means preparing materials responsibly. Sharp, dirty, or hazardous items should not be mixed into normal recycling bins.",
           estimatedReadMinutes: 4,
           tags: ["safety", "cleanliness", "general"],
-          contentBlocks: [
-            { type: "heading", text: "Avoid Hazardous Items" },
-            { type: "paragraph", text: "Do not place batteries, chemical containers, or broken glass into ordinary recycling bins unless a collection point accepts them." },
-            { type: "heading", text: "Keep Materials Clean" },
-            { type: "paragraph", text: "Clean recyclables are easier to process and safer for people who handle the collected materials." },
-            { type: "heading", text: "Use the Right Bin" },
-            { type: "paragraph", text: "When unsure, read the bin label first or ask the recycling station staff before disposing of the item." }
+          blocks: [
+            {
+              title: "Avoid Hazardous Items",
+              content: "Do not place batteries, chemical containers, or broken glass into ordinary recycling bins unless a collection point accepts them.",
+              imageUrl: ""
+            },
+            {
+              title: "Keep Materials Clean",
+              content: "Clean recyclables are easier to process and safer for people who handle the collected materials.",
+              imageUrl: ""
+            },
+            {
+              title: "Use the Right Bin",
+              content: "When unsure, read the bin label first or ask the recycling station staff before disposing of the item.",
+              imageUrl: ""
+            }
           ]
         }
       };
@@ -588,18 +723,8 @@
       document.getElementById("contentReadMinutes").value = sample.estimatedReadMinutes;
       document.getElementById("contentStatus").value = "PUBLISHED";
       document.getElementById("contentImageUrl").value = "";
-      document.getElementById("contentBlocks").value = JSON.stringify(sample.contentBlocks, null, 2);
+      resetContentBlocks(sample.blocks);
       setContentTags(sample.tags);
-    }
-
-    function parseContentBlocks() {
-      const raw = document.getElementById("contentBlocks").value.trim();
-      if (!raw) return undefined;
-      const parsed = JSON.parse(raw);
-      if (!Array.isArray(parsed)) {
-        throw new Error("Content Blocks JSON must be an array.");
-      }
-      return parsed;
     }
 
     async function uploadContentImage() {
@@ -632,19 +757,24 @@
       }
 
       try {
+        const contentBlocks = collectContentBlocks();
+        const fallbackBody = contentBlocksToBody(contentBlocks);
         const payload = {
           title: document.getElementById("contentTitle").value.trim(),
           summary: document.getElementById("contentSummary").value.trim(),
-          body: document.getElementById("contentBody").value.trim(),
+          body: document.getElementById("contentBody").value.trim() || fallbackBody,
           estimatedReadMinutes: Number(document.getElementById("contentReadMinutes").value),
           status: document.getElementById("contentStatus").value,
           tags,
-          contentBlocks: parseContentBlocks()
+          contentBlocks: contentBlocks.length ? contentBlocks : undefined
         };
         const imageUrl = document.getElementById("contentImageUrl").value.trim();
         if (imageUrl) payload.imageUrl = imageUrl;
         if (!payload.summary) delete payload.summary;
         if (!payload.contentBlocks) delete payload.contentBlocks;
+        if (!payload.body) {
+          throw new Error("Add article body text or at least one content block.");
+        }
 
         const data = await api("/content", {
           method: "POST",
@@ -799,6 +929,57 @@
       await Promise.all([loadRecyclingSubmissions(), loadQrCodes(), loadLeaderboard(), loadSuspicious()]);
     }
 
+    async function loadMissionSubmissions() {
+      const status = document.getElementById("missionSubmissionStatus").value;
+      const params = new URLSearchParams();
+      if (status) params.set("status", status);
+      const query = params.toString();
+      const data = await api(`/submissions${query ? `?${query}` : ""}`);
+      const rows = data.submissions.map(submission => {
+        const canReview = submission.status === "PENDING_REVIEW";
+        const proofImage = submission.proofImageUrl
+          ? `<a href="${escapeHtml(submission.proofImageUrl)}" target="_blank" rel="noreferrer">Open proof image</a>`
+          : `<span class="muted">No proof image</span>`;
+        const action = canReview ? `
+          <div class="review-box">
+            <select id="missionReviewStatus-${submission.id}">
+              <option value="APPROVED">Approve</option>
+              <option value="REJECTED">Reject</option>
+            </select>
+            <textarea id="missionReviewNote-${submission.id}" placeholder="Review note shown to the student"></textarea>
+            <button onclick="reviewMissionSubmission('${submission.id}')">Submit Review</button>
+          </div>
+        ` : `<span class="muted">No action available</span>`;
+
+        return `
+          <tr>
+            <td>${escapeHtml(submission.id)}<br><span class="pill">${escapeHtml(submission.status)}</span></td>
+            <td>${escapeHtml(submission.user?.name || submission.userId)}<br><span class="muted">${escapeHtml(submission.user?.email || "")}</span></td>
+            <td>${escapeHtml(submission.mission?.title || submission.missionId)}<br><span class="muted">${escapeHtml(submission.missionId || "")}</span></td>
+            <td>${escapeHtml(submission.proofText || "")}<br><span class="muted">Quantity: ${escapeHtml(submission.quantity ?? "-")}</span><br>${proofImage}</td>
+            <td>${escapeHtml(submission.reviewNote || "")}</td>
+            <td>${action}</td>
+          </tr>
+        `;
+      }).join("");
+      document.getElementById("missionSubmissions").innerHTML = `
+        <table>
+          <thead><tr><th>ID</th><th>Student</th><th>Mission</th><th>Proof</th><th>Current Note</th><th>Review</th></tr></thead>
+          <tbody>${rows || `<tr><td colspan="6" class="muted">No mission submissions.</td></tr>`}</tbody>
+        </table>
+      `;
+    }
+
+    async function reviewMissionSubmission(id) {
+      const status = document.getElementById(`missionReviewStatus-${id}`)?.value || "APPROVED";
+      const reviewNote = document.getElementById(`missionReviewNote-${id}`)?.value.trim() || "";
+      await api(`/submissions/${id}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({ status, reviewNote })
+      });
+      await Promise.all([loadMissionSubmissions(), loadLeaderboard(), loadSuspicious()]);
+    }
+
     async function loadRewards() {
       const data = await api("/rewards?includeInactive=true");
       document.getElementById("rewards").innerHTML = `
@@ -905,6 +1086,7 @@
     }
 
     initContentControls();
+    resetContentBlocks();
 
     if (token) {
       setStatus("Saved token found. Click Refresh to load.");

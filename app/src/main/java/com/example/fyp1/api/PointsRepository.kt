@@ -16,6 +16,7 @@ class PointsRepository(context: Context) {
     private val appContext = context.applicationContext
     private val sessionManager = AuthSessionManager(appContext)
     private val offlineDao = OfflineDatabase.get(appContext).offlineDao()
+    private val notificationRepository = NotificationRepository(appContext)
     private val gson = Gson()
 
     private val api: PointsApiService by lazy {
@@ -42,6 +43,7 @@ class PointsRepository(context: Context) {
         runCatching {
             when (val result = handleResponse(api.getMyPoints()) { it.data }) {
                 is AuthResult.Success -> {
+                    notificationRepository.notifyPointChanges(result.value)
                     offlineDao.replacePointLedger(result.value)
                     result
                 }

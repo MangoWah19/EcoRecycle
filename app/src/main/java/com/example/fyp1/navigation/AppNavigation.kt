@@ -1,7 +1,12 @@
 package com.example.fyp1.navigation
 
+import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.VibrationEffect
+import android.os.Vibrator
+import android.os.VibratorManager
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -121,17 +126,67 @@ import java.time.ZoneId
 import com.example.fyp1.*
 import com.example.fyp1.api.AuthRepository
 import com.example.fyp1.api.AuthResult
+import com.example.fyp1.api.NotificationRepository
 import com.example.fyp1.components.AppPopOutDialog
+import com.example.fyp1.components.InAppNotificationBanner
 import com.example.fyp1.components.PopOutMessageType
+import com.example.fyp1.offline.LocalNotificationEntity
 import com.example.fyp1.offline.isNetworkAvailable
 import com.example.fyp1.screens.*
 
 @Composable
 fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
+    val context = LocalContext.current
     val navController = rememberNavController()
     val viewModel: MainViewModel = viewModel()
+    val notificationRepository = remember { NotificationRepository(context) }
 
     var currentIntent by remember { mutableStateOf(initialIntent) }
+    var inAppNotification by remember { mutableStateOf<LocalNotificationEntity?>(null) }
+    var latestNotificationCreatedAt by remember { mutableStateOf<Long?>(null) }
+    val notificationQueue = remember { mutableStateListOf<LocalNotificationEntity>() }
+    val queuedNotificationIds = remember { mutableSetOf<String>() }
+
+    LaunchedEffect(notificationRepository) {
+        notificationRepository.observeNotifications().collect { notifications ->
+            val sortedNotifications = notifications.sortedBy { it.createdAt }
+            val newest = sortedNotifications.lastOrNull() ?: return@collect
+            val baseline = latestNotificationCreatedAt
+            if (baseline == null) {
+                latestNotificationCreatedAt = newest.createdAt
+                return@collect
+            }
+
+            val newBannerNotifications = sortedNotifications
+                .filter { it.createdAt > baseline }
+                .filter { it.shouldShowInAppBanner() }
+                .filter { queuedNotificationIds.add(it.id) }
+
+            if (newest.createdAt > baseline) {
+                latestNotificationCreatedAt = newest.createdAt
+            }
+
+            notificationQueue.addAll(newBannerNotifications)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        while (true) {
+            if (inAppNotification != null || notificationQueue.isEmpty()) {
+                delay(120)
+                continue
+            }
+            val nextNotification = notificationQueue.removeAt(0)
+            vibrateForEcoUpdate(context)
+            inAppNotification = nextNotification
+            delay(3000)
+            if (inAppNotification?.id == nextNotification.id) {
+                inAppNotification = null
+                queuedNotificationIds.remove(nextNotification.id)
+                delay(260)
+            }
+        }
+    }
 
     LaunchedEffect(currentIntent) {
         if (isResetIntent(currentIntent)) {
@@ -150,48 +205,82 @@ fun AppNavigation(activity: ComponentActivity, initialIntent: Intent?) {
         onDispose { activity.removeOnNewIntentListener(listener) }
     }
 
-    NavHost(navController = navController, startDestination = "auth_loading") {
-        composable("auth_loading") { AuthLoadingScreen(navController, viewModel) }
-        composable("login") { LoginScreen(navController, viewModel) }
-        composable("home") { HomeScreen(navController, viewModel) }
-        composable("rewards") { RewardsScreen(navController, viewModel) }
-        composable("profile") { ProfileScreen(navController, viewModel) }
-        composable("point_transactions") { PointLedgerScreen(navController) }
-        composable("saved_content") { SavedContentScreen(navController) }
-        composable("submit_recycling") { SubmitRecyclingScreen(navController, viewModel) }
-        composable("recycling_history") { RecyclingHistoryScreen(navController, viewModel) }
-        composable("qr_scanner") { QRScannerScreen(navController, viewModel) }
-        composable("eco_learning") { EcoLearningScreen(navController) }
-        composable("content_detail/{contentId}") { backStack ->
-            ContentDetailScreen(navController, backStack.arguments?.getString("contentId") ?: "")
+    Box(Modifier.fillMaxSize()) {
+        NavHost(navController = navController, startDestination = "auth_loading") {
+            composable("auth_loading") { AuthLoadingScreen(navController, viewModel) }
+            composable("login") { LoginScreen(navController, viewModel) }
+            composable("home") { HomeScreen(navController, viewModel) }
+            composable("rewards") { RewardsScreen(navController, viewModel) }
+            composable("profile") { ProfileScreen(navController, viewModel) }
+            composable("notifications") { NotificationScreen(navController) }
+            composable("point_transactions") { PointLedgerScreen(navController) }
+            composable("saved_content") { SavedContentScreen(navController) }
+            composable("submit_recycling") { SubmitRecyclingScreen(navController, viewModel) }
+            composable("recycling_history") { RecyclingHistoryScreen(navController, viewModel) }
+            composable("qr_scanner") { QRScannerScreen(navController, viewModel) }
+            composable("eco_learning") { EcoLearningScreen(navController) }
+            composable("content_detail/{contentId}") { backStack ->
+                ContentDetailScreen(navController, backStack.arguments?.getString("contentId") ?: "")
+            }
+            composable("quiz_attempt/{contentId}") { backStack ->
+                QuizAttemptScreen(navController, backStack.arguments?.getString("contentId") ?: "")
+            }
+            composable("quiz_review") { QuizReviewScreen(navController) }
+            composable("about_app") { AboutAppScreen(navController) }
+            composable("how_it_works") { HowItWorksScreen(navController) }
+            composable("sustainability_policy") { SustainabilityPolicyScreen(navController) }
+            composable("recycling_guide") { RecyclingGuideScreen(navController) }
+            composable("guide_detail/{material}") { backStack ->
+                val mat = backStack.arguments?.getString("material") ?: ""
+                GuideDetailScreen(navController, mat)
+            }
+            composable("edit_profile") { EditProfileScreen(navController, viewModel) }
+            composable("leaderboard") { LeaderboardScreen(navController, viewModel) }
+            composable("missions") { MissionsScreen(navController, viewModel) }
+            composable("mission_details/{missionType}") { backStack ->
+                MissionDetailsScreen(navController, viewModel, backStack.arguments?.getString("missionType") ?: "zero_waste_coffee")
+            }
+            composable("achievements") { AchievementsScreen(navController, viewModel) }
+            composable("forgot_password") { ForgotPasswordScreen(navController) }
+            composable("reset_password") { ResetPasswordScreen(navController) }
         }
-        composable("quiz_attempt/{contentId}") { backStack ->
-            QuizAttemptScreen(navController, backStack.arguments?.getString("contentId") ?: "")
-        }
-        composable("quiz_review") { QuizReviewScreen(navController) }
-        composable("about_app") { AboutAppScreen(navController) }
-        composable("how_it_works") { HowItWorksScreen(navController) }
-        composable("sustainability_policy") { SustainabilityPolicyScreen(navController) }
-        composable("recycling_guide") { RecyclingGuideScreen(navController) }
-        composable("guide_detail/{material}") { backStack ->
-            val mat = backStack.arguments?.getString("material") ?: ""
-            GuideDetailScreen(navController, mat)
-        }
-        composable("edit_profile") { EditProfileScreen(navController, viewModel) }
-        composable("leaderboard") { LeaderboardScreen(navController, viewModel) }
-        composable("missions") { MissionsScreen(navController, viewModel) }
-        composable("mission_details/{missionType}") { backStack ->
-            MissionDetailsScreen(navController, viewModel, backStack.arguments?.getString("missionType") ?: "zero_waste_coffee")
-        }
-        composable("achievements") { AchievementsScreen(navController, viewModel) }
-        composable("forgot_password") { ForgotPasswordScreen(navController) }
-        composable("reset_password") { ResetPasswordScreen(navController) }
+
+        InAppNotificationBanner(
+            notification = inAppNotification,
+            modifier = Modifier.align(Alignment.TopCenter)
+        )
     }
 
     AppPopOutDialog(
         message = viewModel.popOutMessage,
         onDismiss = { viewModel.dismissPopOut() }
     )
+}
+
+private fun LocalNotificationEntity.shouldShowInAppBanner(): Boolean =
+    title.contains("Approved", ignoreCase = true) ||
+        title.contains("Redeemed", ignoreCase = true) ||
+        title.contains("Points", ignoreCase = true) ||
+        title.contains("Badge", ignoreCase = true) ||
+        (category.equals("REWARD", ignoreCase = true) && sourceId?.startsWith("BDG") == true) ||
+        title.contains("Rank", ignoreCase = true)
+
+private fun vibrateForEcoUpdate(context: Context) {
+    val vibrator = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        val manager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as VibratorManager
+        manager.defaultVibrator
+    } else {
+        @Suppress("DEPRECATION")
+        context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
+    }
+
+    if (!vibrator.hasVibrator()) return
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        vibrator.vibrate(VibrationEffect.createOneShot(70L, VibrationEffect.DEFAULT_AMPLITUDE))
+    } else {
+        @Suppress("DEPRECATION")
+        vibrator.vibrate(70L)
+    }
 }
 
 @Composable

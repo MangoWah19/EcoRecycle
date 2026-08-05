@@ -43,7 +43,9 @@ class AuthRepository(context: Context) {
     suspend fun login(email: String, password: String): AuthResult<AuthData> {
         val result = runCatching {
             handleAuthResponse(api.login(LoginRequest(email = email, password = password)))
-        }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
+        }.getOrElse {
+            AuthResult.Error(networkErrorMessage(it))
+        }
         if (result is AuthResult.Success) {
             sessionManager.saveSession(result.value.token, result.value.user)
         }

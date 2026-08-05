@@ -13,6 +13,8 @@ import androidx.room.RoomDatabase
 import androidx.room.Transaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.example.fyp1.RecyclingLog
+import com.example.fyp1.Redemption
 import com.example.fyp1.api.BackendPointsEvent
 import com.example.fyp1.api.BackendContent
 import com.example.fyp1.api.BackendContentBlock
@@ -24,6 +26,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonElement
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.flow.Flow
 
 @Entity(tableName = "cached_missions")
 data class CachedMissionEntity(
@@ -140,6 +143,64 @@ data class CachedPointEventEntity(
     val cachedAt: Long = System.currentTimeMillis()
 )
 
+@Entity(tableName = "local_notifications")
+data class LocalNotificationEntity(
+    @PrimaryKey val id: String,
+    val category: String,
+    val title: String,
+    val message: String,
+    val sourceId: String? = null,
+    val isRead: Boolean = false,
+    val createdAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "cached_recycling_submissions")
+data class CachedRecyclingSubmissionEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val source: String?,
+    val qrCodeId: String?,
+    val materialType: String,
+    val quantity: Double,
+    val status: String,
+    val pointsAwarded: Int,
+    val submittedAt: String?,
+    val reviewedAt: String?,
+    val cachedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "cached_redemptions")
+data class CachedRedemptionEntity(
+    @PrimaryKey val id: String,
+    val userId: String,
+    val rewardId: String?,
+    val itemName: String,
+    val pointsSpent: Int,
+    val status: String,
+    val createdAt: String?,
+    val updatedAt: String?,
+    val cachedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "cached_earned_badges")
+data class CachedEarnedBadgeEntity(
+    @PrimaryKey val badgeId: String,
+    val name: String,
+    val tier: String,
+    val awardedAt: String?,
+    val cachedAt: Long = System.currentTimeMillis()
+)
+
+@Entity(tableName = "cached_leaderboard_ranks")
+data class CachedLeaderboardRankEntity(
+    @PrimaryKey val timeframe: String,
+    val userId: String,
+    val rank: Int,
+    val totalPoints: Int,
+    val lifetimePoints: Int,
+    val cachedAt: Long = System.currentTimeMillis()
+)
+
 enum class PendingMissionStatus(val value: String) {
     PendingUpload("PENDING_UPLOAD"),
     Uploading("UPLOADING"),
@@ -200,6 +261,9 @@ interface OfflineDao {
     @Query("SELECT * FROM cached_mission_submissions ORDER BY COALESCE(submittedAt, createdAt, '') DESC")
     suspend fun getCachedSubmissions(): List<CachedMissionSubmissionEntity>
 
+    @Query("SELECT * FROM cached_mission_submissions WHERE id IN (:ids)")
+    suspend fun getCachedSubmissionsByIds(ids: List<String>): List<CachedMissionSubmissionEntity>
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertPendingMissionSubmission(submission: PendingMissionSubmissionEntity)
 
@@ -242,6 +306,51 @@ interface OfflineDao {
         clearCachedPointEvents()
         upsertPointEvents(pointsData.events.map { it.toCachedEntity() })
     }
+
+    @Insert(onConflict = OnConflictStrategy.IGNORE)
+    suspend fun insertNotification(notification: LocalNotificationEntity): Long
+
+    @Query("SELECT * FROM local_notifications ORDER BY createdAt DESC")
+    fun observeNotifications(): Flow<List<LocalNotificationEntity>>
+
+    @Query("SELECT COUNT(*) FROM local_notifications WHERE isRead = 0")
+    fun observeUnreadNotificationCount(): Flow<Int>
+
+    @Query("SELECT COUNT(*) FROM local_notifications WHERE isRead = 0")
+    suspend fun getUnreadNotificationCount(): Int
+
+    @Query("UPDATE local_notifications SET isRead = 1 WHERE id = :id")
+    suspend fun markNotificationRead(id: String)
+
+    @Query("UPDATE local_notifications SET isRead = 1")
+    suspend fun markAllNotificationsRead()
+
+    @Query("DELETE FROM local_notifications")
+    suspend fun clearNotifications()
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRecyclingSubmissions(submissions: List<CachedRecyclingSubmissionEntity>)
+
+    @Query("SELECT * FROM cached_recycling_submissions WHERE id IN (:ids)")
+    suspend fun getCachedRecyclingSubmissionsByIds(ids: List<String>): List<CachedRecyclingSubmissionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertRedemptions(redemptions: List<CachedRedemptionEntity>)
+
+    @Query("SELECT * FROM cached_redemptions WHERE id IN (:ids)")
+    suspend fun getCachedRedemptionsByIds(ids: List<String>): List<CachedRedemptionEntity>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertEarnedBadges(badges: List<CachedEarnedBadgeEntity>)
+
+    @Query("SELECT badgeId FROM cached_earned_badges")
+    suspend fun getCachedEarnedBadgeIds(): List<String>
+
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun upsertLeaderboardRank(rank: CachedLeaderboardRankEntity)
+
+    @Query("SELECT * FROM cached_leaderboard_ranks WHERE timeframe = :timeframe LIMIT 1")
+    suspend fun getCachedLeaderboardRank(timeframe: String): CachedLeaderboardRankEntity?
 }
 
 @Database(
@@ -252,9 +361,14 @@ interface OfflineDao {
         SavedContentEntity::class,
         PendingMissionSubmissionEntity::class,
         CachedPointBalanceEntity::class,
-        CachedPointEventEntity::class
+        CachedPointEventEntity::class,
+        LocalNotificationEntity::class,
+        CachedRecyclingSubmissionEntity::class,
+        CachedRedemptionEntity::class,
+        CachedEarnedBadgeEntity::class,
+        CachedLeaderboardRankEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class OfflineDatabase : RoomDatabase() {
@@ -269,7 +383,7 @@ abstract class OfflineDatabase : RoomDatabase() {
                     context.applicationContext,
                     OfflineDatabase::class.java,
                     "eco_recycle_offline.db"
-                ).addMigrations(MIGRATION_2_3)
+                ).addMigrations(MIGRATION_2_3, MIGRATION_3_4)
                     .fallbackToDestructiveMigration()
                     .build()
                     .also { instance = it }
@@ -307,6 +421,84 @@ abstract class OfflineDatabase : RoomDatabase() {
                         `sortAt` TEXT NOT NULL,
                         `cachedAt` INTEGER NOT NULL,
                         PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+            }
+        }
+
+        private val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `local_notifications` (
+                        `id` TEXT NOT NULL,
+                        `category` TEXT NOT NULL,
+                        `title` TEXT NOT NULL,
+                        `message` TEXT NOT NULL,
+                        `sourceId` TEXT,
+                        `isRead` INTEGER NOT NULL,
+                        `createdAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `cached_recycling_submissions` (
+                        `id` TEXT NOT NULL,
+                        `userId` TEXT NOT NULL,
+                        `source` TEXT,
+                        `qrCodeId` TEXT,
+                        `materialType` TEXT NOT NULL,
+                        `quantity` REAL NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `pointsAwarded` INTEGER NOT NULL,
+                        `submittedAt` TEXT,
+                        `reviewedAt` TEXT,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `cached_redemptions` (
+                        `id` TEXT NOT NULL,
+                        `userId` TEXT NOT NULL,
+                        `rewardId` TEXT,
+                        `itemName` TEXT NOT NULL,
+                        `pointsSpent` INTEGER NOT NULL,
+                        `status` TEXT NOT NULL,
+                        `createdAt` TEXT,
+                        `updatedAt` TEXT,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`id`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `cached_earned_badges` (
+                        `badgeId` TEXT NOT NULL,
+                        `name` TEXT NOT NULL,
+                        `tier` TEXT NOT NULL,
+                        `awardedAt` TEXT,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`badgeId`)
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS `cached_leaderboard_ranks` (
+                        `timeframe` TEXT NOT NULL,
+                        `userId` TEXT NOT NULL,
+                        `rank` INTEGER NOT NULL,
+                        `totalPoints` INTEGER NOT NULL,
+                        `lifetimePoints` INTEGER NOT NULL,
+                        `cachedAt` INTEGER NOT NULL,
+                        PRIMARY KEY(`timeframe`)
                     )
                     """.trimIndent()
                 )
@@ -493,6 +685,36 @@ fun CachedPointEventEntity.toBackendPointsEvent(): BackendPointsEvent = BackendP
     createdAt = createdAt,
     updatedAt = updatedAt
 )
+
+fun RecyclingLog.toCachedRecyclingEntity(): CachedRecyclingSubmissionEntity? {
+    val safeId = id ?: return null
+    return CachedRecyclingSubmissionEntity(
+        id = safeId,
+        userId = user_id,
+        source = source,
+        qrCodeId = qr_code_id,
+        materialType = material_type,
+        quantity = quantity,
+        status = status,
+        pointsAwarded = points_awarded,
+        submittedAt = created_at,
+        reviewedAt = null
+    )
+}
+
+fun Redemption.toCachedRedemptionEntity(): CachedRedemptionEntity? {
+    val safeId = id ?: return null
+    return CachedRedemptionEntity(
+        id = safeId,
+        userId = user_id,
+        rewardId = reward_id,
+        itemName = item_name,
+        pointsSpent = points_spent,
+        status = status,
+        createdAt = created_at,
+        updatedAt = completed_at ?: claimed_at ?: cancelled_at ?: reserved_at
+    )
+}
 
 private fun String.toJsonElementOrNull(): JsonElement? =
     runCatching { JsonParser.parseString(this) }.getOrNull()

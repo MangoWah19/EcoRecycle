@@ -1,9 +1,12 @@
 package com.example.fyp1
 
+import android.Manifest
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
@@ -131,6 +134,7 @@ import com.example.fyp1.components.AppPopOutMessage
 import com.example.fyp1.components.PopOutMessageType
 import com.example.fyp1.engines.*
 import com.example.fyp1.navigation.AppNavigation
+import com.example.fyp1.notifications.EcoReminderScheduler
 import com.example.fyp1.offline.isNetworkAvailable
 
 
@@ -708,6 +712,8 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        requestNotificationPermissionIfNeeded()
+        EcoReminderScheduler.ensureScheduled(this)
         setContent {
             FYP1Theme {
                 AppNavigation(this@MainActivity, intent)
@@ -718,5 +724,14 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
+    }
+
+    private fun requestNotificationPermissionIfNeeded() {
+        if (
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), 7105)
+        }
     }
 }

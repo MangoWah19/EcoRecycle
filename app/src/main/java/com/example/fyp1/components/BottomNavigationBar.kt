@@ -131,6 +131,7 @@ fun BottomNavigationBar(navController: NavController) {
             activeRoutes = setOf(
                 "profile",
                 "edit_profile",
+                "notifications",
                 "point_transactions",
                 "about_app",
                 "how_it_works",

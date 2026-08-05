@@ -3,9 +3,13 @@ package com.example.fyp1.offline
 import android.content.Context
 import com.example.fyp1.api.AuthResult
 import com.example.fyp1.api.AuthSessionManager
+import com.example.fyp1.api.BadgeRepository
 import com.example.fyp1.api.ContentRepository
+import com.example.fyp1.api.LeaderboardRepository
 import com.example.fyp1.api.MissionRepository
 import com.example.fyp1.api.PointsRepository
+import com.example.fyp1.api.RecyclingRepository
+import com.example.fyp1.api.RewardRepository
 import com.example.fyp1.api.SubmitMissionRequest
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -114,9 +118,19 @@ object OfflineWorkManager {
         val missionRepository = MissionRepository(context)
         val contentRepository = ContentRepository(context)
         val pointsRepository = PointsRepository(context)
+        val recyclingRepository = RecyclingRepository(context)
+        val rewardRepository = RewardRepository(context)
+        val badgeRepository = BadgeRepository(context)
+        val leaderboardRepository = LeaderboardRepository(context)
         missionRepository.getMissions()
         missionRepository.getMySubmissions()
         contentRepository.getContent()
         pointsRepository.getMyPoints()
+        recyclingRepository.getMySubmissions()
+        rewardRepository.getMyRedemptions()
+        badgeRepository.getBadgeProgress()
+        leaderboardRepository.getLeaderboard("daily")
+        leaderboardRepository.getLeaderboard("weekly")
+        leaderboardRepository.getLeaderboard("all_time")
     }
 }

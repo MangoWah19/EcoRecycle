@@ -341,7 +341,8 @@ private data class LedgerEventStyle(
 private fun BackendPointsEvent.ledgerStyle(): LedgerEventStyle {
     val type = eventType.uppercase()
     return when {
-        type.contains("REWARD") || isSpent() -> LedgerEventStyle("Reward Redeemed", "Reward redemption", Icons.Default.Redeem, Color(0xFFB02500), Color(0xFFB02500))
+        type == "REWARD_REFUNDED" -> LedgerEventStyle("Reward Refunded", "Reward points returned", Icons.Default.Redeem, LedgerPrimary, LedgerPrimary)
+        type == "REWARD_REDEEMED" || isSpent() -> LedgerEventStyle("Reward Redeemed", "Reward redemption", Icons.Default.Redeem, Color(0xFFB02500), Color(0xFFB02500))
         type.contains("MISSION") -> LedgerEventStyle("Mission Completed", "Mission points", Icons.Default.Stars, Color(0xFF00656F), LedgerPrimary)
         type.contains("RECYCLING") -> LedgerEventStyle("Recycling Approved", "Recycling deposit", Icons.Default.Recycling, LedgerPrimary, LedgerPrimary)
         else -> LedgerEventStyle(eventType.replace('_', ' '), "Point adjustment", Icons.Default.ReceiptLong, Color(0xFF5F6662), if (points >= 0) LedgerPrimary else Color(0xFFB02500))

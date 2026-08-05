@@ -81,6 +81,7 @@ fun EcoNavigationDrawer(
                 onAboutApp = { navigateToProfileSubPage("about_app") },
                 onHowItWorks = { navigateToProfileSubPage("how_it_works") },
                 onSustainabilityPolicy = { navigateToProfileSubPage("sustainability_policy") },
+                onNotifications = { navigateToProfileSubPage("notifications") },
                 onRecyclingGuide = { navigateToProfileSubPage("recycling_guide") },
                 onSavedContent = ::navigateToSavedContentFromProfile
             )
@@ -98,6 +99,7 @@ private fun EcoDrawerContent(
     onAboutApp: () -> Unit,
     onHowItWorks: () -> Unit,
     onSustainabilityPolicy: () -> Unit,
+    onNotifications: () -> Unit,
     onRecyclingGuide: () -> Unit,
     onSavedContent: () -> Unit
 ) {
@@ -153,7 +155,7 @@ private fun EcoDrawerContent(
                 DrawerRow(Icons.Default.Info, "About the App", onClick = onAboutApp)
                 DrawerRow(Icons.AutoMirrored.Filled.HelpOutline, "How it Works", onClick = onHowItWorks)
                 DrawerRow(Icons.Default.Policy, "Sustainability Policy", onClick = onSustainabilityPolicy)
-                DrawerRow(Icons.Default.Notifications, "Notifications")
+                DrawerRow(Icons.Default.Notifications, "Notifications", onClick = onNotifications)
                 DrawerRow(Icons.Default.Recycling, "Recycling Guide", onClick = onRecyclingGuide)
             }
 

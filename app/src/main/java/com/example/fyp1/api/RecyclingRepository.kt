@@ -19,6 +19,7 @@ import java.util.concurrent.TimeUnit
 class RecyclingRepository(context: Context) {
     private val appContext = context.applicationContext
     private val sessionManager = AuthSessionManager(appContext)
+    private val notificationRepository = NotificationRepository(appContext)
     private val gson = Gson()
 
     private val api: RecyclingApiService by lazy {
@@ -54,7 +55,13 @@ class RecyclingRepository(context: Context) {
                 proofImageUrl = proofImageUrl,
                 uploadId = uploadId
             )
-            handleResponse(api.createSubmission(request)) { it.data.submission.toRecyclingLog() }
+            when (val result = handleResponse(api.createSubmission(request)) { it.data.submission.toRecyclingLog() }) {
+                is AuthResult.Success -> {
+                    notificationRepository.recordRecyclingSubmitted(result.value)
+                    result
+                }
+                is AuthResult.Error -> result
+            }
         }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
 
     suspend fun uploadRecyclingProof(
@@ -72,13 +79,23 @@ class RecyclingRepository(context: Context) {
         runCatching {
             val request = parseQrClaimPayload(rawClaimPayload)
                 ?: return AuthResult.Error("This QR code is not a valid EcoRecycle recycling QR.")
-            handleResponse(api.claimQr(request)) { it.data.submission.toRecyclingLog() }
+            when (val result = handleResponse(api.claimQr(request)) { it.data.submission.toRecyclingLog() }) {
+                is AuthResult.Success -> {
+                    notificationRepository.recordRecyclingSubmitted(result.value, qrBased = true)
+                    result
+                }
+                is AuthResult.Error -> result
+            }
         }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
 
     suspend fun getMySubmissions(): AuthResult<List<RecyclingLog>> =
         runCatching {
             handleResponse(api.getMySubmissions()) { envelope ->
                 envelope.data.submissions.map { it.toRecyclingLog() }
+            }.also { result ->
+                if (result is AuthResult.Success) {
+                    notificationRepository.notifyRecyclingSubmissionChanges(result.value)
+                }
             }
         }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
 
@@ -182,9 +199,9 @@ class RecyclingRepository(context: Context) {
 
     private fun networkErrorMessage(error: Throwable): String {
         return when (error) {
-            is java.net.ConnectException -> "Connection Error: Could not reach the backend."
-            is java.net.SocketTimeoutException -> "Connection Error: The backend took too long to respond."
-            is java.net.UnknownHostException -> "Connection Error: Could not resolve backend host."
+            is java.net.ConnectException -> "Connection Error: Could not reach EcoRecycle services. Please check your connection."
+            is java.net.SocketTimeoutException -> "Connection Error: EcoRecycle services are taking too long to respond."
+            is java.net.UnknownHostException -> "Connection Error: Could not find EcoRecycle services. Please check your connection."
             else -> "Unexpected Error: ${error.localizedMessage ?: "Please try again."}"
         }
     }

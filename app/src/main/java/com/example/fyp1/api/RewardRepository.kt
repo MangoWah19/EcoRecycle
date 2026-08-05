@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit
 class RewardRepository(context: Context) {
     private val appContext = context.applicationContext
     private val sessionManager = AuthSessionManager(appContext)
+    private val notificationRepository = NotificationRepository(appContext)
     private val gson = Gson()
 
     private val api: RewardApiService by lazy {
@@ -48,13 +49,23 @@ class RewardRepository(context: Context) {
         runCatching {
             handleResponse(api.getMyRedemptions()) { envelope ->
                 envelope.data.redemptions.map { it.toRedemption() }
+            }.also { result ->
+                if (result is AuthResult.Success) {
+                    notificationRepository.notifyRewardChanges(result.value)
+                }
             }
         }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
 
     suspend fun redeemReward(id: String, quantity: Int): AuthResult<Redemption> =
         runCatching {
-            handleResponse(api.redeemReward(id, RedeemRewardRequest(quantity))) {
+            when (val result = handleResponse(api.redeemReward(id, RedeemRewardRequest(quantity))) {
                 it.data.redemption.toRedemption()
+            }) {
+                is AuthResult.Success -> {
+                    notificationRepository.recordRewardRedeemed(result.value)
+                    result
+                }
+                is AuthResult.Error -> result
             }
         }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
 
@@ -130,9 +141,9 @@ class RewardRepository(context: Context) {
 
     private fun networkErrorMessage(error: Throwable): String {
         return when (error) {
-            is java.net.ConnectException -> "Connection Error: Could not reach the backend."
-            is java.net.SocketTimeoutException -> "Connection Error: The backend took too long to respond."
-            is java.net.UnknownHostException -> "Connection Error: Could not resolve backend host."
+            is java.net.ConnectException -> "Connection Error: Could not reach EcoRecycle services. Please check your connection."
+            is java.net.SocketTimeoutException -> "Connection Error: EcoRecycle services are taking too long to respond."
+            is java.net.UnknownHostException -> "Connection Error: Could not find EcoRecycle services. Please check your connection."
             else -> "Unexpected Error: ${error.localizedMessage ?: "Please try again."}"
         }
     }

@@ -15,6 +15,7 @@ import java.util.concurrent.TimeUnit
 class LeaderboardRepository(context: Context) {
     private val appContext = context.applicationContext
     private val sessionManager = AuthSessionManager(appContext)
+    private val notificationRepository = NotificationRepository(appContext)
     private val gson = Gson()
 
     private val api: LeaderboardApiService by lazy {
@@ -39,12 +40,18 @@ class LeaderboardRepository(context: Context) {
 
     suspend fun getLeaderboard(timeframe: String): AuthResult<LeaderboardResponse> =
         runCatching {
-            handleResponse(api.getLeaderboard(timeframe)) { envelope ->
+            when (val result = handleResponse(api.getLeaderboard(timeframe)) { envelope ->
                 LeaderboardResponse(
                     timeframe = envelope.data.timeframe,
                     entries = envelope.data.entries.map { it.toLeaderboardEntryWithRank() },
                     generated_at = envelope.data.generated_at
                 )
+            }) {
+                is AuthResult.Success -> {
+                    notificationRepository.notifyLeaderboardChanges(timeframe, result.value)
+                    result
+                }
+                is AuthResult.Error -> result
             }
         }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
 
@@ -95,9 +102,9 @@ class LeaderboardRepository(context: Context) {
 
     private fun networkErrorMessage(error: Throwable): String {
         return when (error) {
-            is java.net.ConnectException -> "Connection Error: Could not reach the backend."
-            is java.net.SocketTimeoutException -> "Connection Error: The backend took too long to respond."
-            is java.net.UnknownHostException -> "Connection Error: Could not resolve backend host."
+            is java.net.ConnectException -> "Connection Error: Could not reach EcoRecycle services. Please check your connection."
+            is java.net.SocketTimeoutException -> "Connection Error: EcoRecycle services are taking too long to respond."
+            is java.net.UnknownHostException -> "Connection Error: Could not find EcoRecycle services. Please check your connection."
             else -> "Unexpected Error: ${error.localizedMessage ?: "Please try again."}"
         }
     }

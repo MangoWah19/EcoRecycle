@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit
 class BadgeRepository(context: Context) {
     private val appContext = context.applicationContext
     private val sessionManager = AuthSessionManager(appContext)
+    private val notificationRepository = NotificationRepository(appContext)
     private val gson = Gson()
 
     private val api: BadgeApiService by lazy {
@@ -37,7 +38,13 @@ class BadgeRepository(context: Context) {
 
     suspend fun getBadgeProgress(): AuthResult<BadgeProgressData> =
         runCatching {
-            handleResponse(api.getBadgeProgress()) { it.data }
+            when (val result = handleResponse(api.getBadgeProgress()) { it.data }) {
+                is AuthResult.Success -> {
+                    notificationRepository.notifyBadgeChanges(result.value)
+                    result
+                }
+                is AuthResult.Error -> result
+            }
         }.getOrElse { AuthResult.Error(networkErrorMessage(it)) }
 
     private fun authInterceptor(): Interceptor = Interceptor { chain ->
@@ -77,9 +84,9 @@ class BadgeRepository(context: Context) {
 
     private fun networkErrorMessage(error: Throwable): String {
         return when (error) {
-            is java.net.ConnectException -> "Connection Error: Could not reach the backend."
-            is java.net.SocketTimeoutException -> "Connection Error: The backend took too long to respond."
-            is java.net.UnknownHostException -> "Connection Error: Could not resolve backend host."
+            is java.net.ConnectException -> "Connection Error: Could not reach EcoRecycle services. Please check your connection."
+            is java.net.SocketTimeoutException -> "Connection Error: EcoRecycle services are taking too long to respond."
+            is java.net.UnknownHostException -> "Connection Error: Could not find EcoRecycle services. Please check your connection."
             else -> "Unexpected Error: ${error.localizedMessage ?: "Please try again."}"
         }
     }
