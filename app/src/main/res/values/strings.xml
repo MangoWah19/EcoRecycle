@@ -1,4 +1,4 @@
 <resources>
     <string name="app_name">EcoRecycle</string>
-    <string name="backend_base_url">http://172.16.168.46:5000/api/v1/</string>
+    <string name="backend_base_url">https://app-sdg-backend-fwcvbshjeugbcuea.southeastasia-01.azurewebsites.net/api/v1/</string>
 </resources>

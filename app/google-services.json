@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "263733772898",
+    "project_id": "sdg-recycling-ecosystem-beta",
+    "storage_bucket": "sdg-recycling-ecosystem-beta.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:263733772898:android:f4f7f0234cb195275f873b",
+        "android_client_info": {
+          "package_name": "com.example.fyp1"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBUpTebJDtDuParYIBuvE4ElhuqelmI5cE"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

@@ -96,6 +96,7 @@ fun MissionsScreen(navController: NavController, viewModel: MainViewModel) {
     var searchQuery by remember { mutableStateOf("") }
     var selectedMissionTab by remember { mutableStateOf("All") }
     val visibleBackendMissions = backendMissions.filter { mission ->
+        if (!mission.isActive) return@filter false
         val query = searchQuery.trim()
         val status = missionStatusFor(mission, mySubmissions.forMission(mission.id))
         missionMatchesTab(status, selectedMissionTab) && (query.isBlank() ||

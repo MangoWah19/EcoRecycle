@@ -44,6 +44,8 @@ import androidx.compose.material.icons.filled.Recycling
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Stars
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.WineBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -87,6 +89,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -128,8 +131,11 @@ import com.example.fyp1.offline.isNetworkAvailable
 fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var confirmPassword by remember { mutableStateOf("") }
     var fullName by remember { mutableStateOf("") }
     var isSignUp by remember { mutableStateOf(false) }
+    var isPasswordVisible by remember { mutableStateOf(false) }
+    var isConfirmPasswordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var hasAttemptedSubmit by remember { mutableStateOf(false) }
     var popOutMessage by remember { mutableStateOf<AppPopOutMessage?>(null) }
@@ -139,19 +145,11 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
 
     // Inline validation states 闂?only shown after user attempts to submit
     val passwordError = if (hasAttemptedSubmit) {
-        when {
-            password.isBlank() -> "Password is required."
-            isSignUp && password.length < 8 -> "Password must be at least 8 characters."
-            else -> null
-        }
+        validatePassword(password, requireStrongPassword = isSignUp)
     } else null
 
     val emailError = if (hasAttemptedSubmit) {
-        when {
-            email.isBlank() -> "Email is required."
-            !email.contains("@") || !email.contains(".") -> "Enter a valid email (e.g. user@example.com)."
-            else -> null
-        }
+        validateUowEmail(email)
     } else null
 
     val fullNameError = if (hasAttemptedSubmit && isSignUp) {
@@ -159,6 +157,10 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
             fullName.isBlank() -> "Full name is required."
             else -> null
         }
+    } else null
+
+    val confirmPasswordError = if (hasAttemptedSubmit && isSignUp) {
+        validateConfirmPassword(password, confirmPassword)
     } else null
 
     Column(
@@ -200,7 +202,7 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
         OutlinedTextField(
             value = email,
             onValueChange = { email = it },
-            label = { Text("Email") },
+            label = { Text("UOW Email") },
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading,
             isError = emailError != null,
@@ -212,12 +214,42 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
             value = password,
             onValueChange = { password = it },
             label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             modifier = Modifier.fillMaxWidth(),
             enabled = !isLoading,
             isError = passwordError != null,
+            trailingIcon = {
+                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                    Icon(
+                        imageVector = if (isPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                        contentDescription = if (isPasswordVisible) "Hide password" else "Show password"
+                    )
+                }
+            },
             supportingText = passwordError?.let { { Text(it, color = Color(0xFFB00020)) } }
         )
+
+        if (isSignUp) {
+            Spacer(Modifier.height(16.dp))
+            OutlinedTextField(
+                value = confirmPassword,
+                onValueChange = { confirmPassword = it },
+                label = { Text("Confirm Password") },
+                visualTransformation = if (isConfirmPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                modifier = Modifier.fillMaxWidth(),
+                enabled = !isLoading,
+                isError = confirmPasswordError != null,
+                trailingIcon = {
+                    IconButton(onClick = { isConfirmPasswordVisible = !isConfirmPasswordVisible }) {
+                        Icon(
+                            imageVector = if (isConfirmPasswordVisible) Icons.Default.Visibility else Icons.Default.VisibilityOff,
+                            contentDescription = if (isConfirmPasswordVisible) "Hide confirm password" else "Show confirm password"
+                        )
+                    }
+                },
+                supportingText = confirmPasswordError?.let { { Text(it, color = Color(0xFFB00020)) } }
+            )
+        }
 
         Spacer(Modifier.height(24.dp))
 
@@ -226,7 +258,11 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
                 // Mark that user has attempted to submit 闂?this triggers inline field errors
                 hasAttemptedSubmit = true
 
-                val hasFieldErrors = emailError != null || passwordError != null || fullNameError != null
+                val currentEmailError = validateUowEmail(email)
+                val currentPasswordError = validatePassword(password, requireStrongPassword = isSignUp)
+                val currentFullNameError = if (isSignUp && fullName.isBlank()) "Full name is required." else null
+                val currentConfirmPasswordError = if (isSignUp) validateConfirmPassword(password, confirmPassword) else null
+                val hasFieldErrors = currentEmailError != null || currentPasswordError != null || currentFullNameError != null || currentConfirmPasswordError != null
                 if (hasFieldErrors) return@Button
 
                 isLoading = true
@@ -251,6 +287,7 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
                                 )
                                 email = ""
                                 password = ""
+                                confirmPassword = ""
                                 fullName = ""
                                 hasAttemptedSubmit = false
                                 isSignUp = false
@@ -344,7 +381,10 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
                 if (!isLoading) {
                     email = ""
                     password = ""
+                    confirmPassword = ""
                     fullName = ""
+                    isPasswordVisible = false
+                    isConfirmPasswordVisible = false
                     hasAttemptedSubmit = false
                     isSignUp = !isSignUp
                 }
@@ -365,5 +405,38 @@ fun LoginScreen(navController: NavController, viewModel: MainViewModel) {
         message = popOutMessage,
         onDismiss = { popOutMessage = null }
     )
+}
+
+private val uowEmailRegex = Regex("^[A-Za-z0-9._%+-]+@(student\\.)?uow\\.edu\\.my$")
+
+private fun validateUowEmail(email: String): String? {
+    val trimmedEmail = email.trim()
+    return when {
+        trimmedEmail.isBlank() -> "Email is required."
+        !uowEmailRegex.matches(trimmedEmail) -> "Please use your UOW email, such as name@student.uow.edu.my or name@uow.edu.my."
+        else -> null
+    }
+}
+
+private fun validatePassword(password: String, requireStrongPassword: Boolean): String? {
+    if (password.isBlank()) return "Password is required."
+    if (!requireStrongPassword) return null
+
+    return when {
+        password.length < 8 -> "Password must be at least 8 characters."
+        password.none { it.isUpperCase() } -> "Password must include at least 1 uppercase letter."
+        password.none { it.isLowerCase() } -> "Password must include at least 1 lowercase letter."
+        password.none { it.isDigit() } -> "Password must include at least 1 number."
+        password.none { !it.isLetterOrDigit() } -> "Password must include at least 1 symbol."
+        else -> null
+    }
+}
+
+private fun validateConfirmPassword(password: String, confirmPassword: String): String? {
+    return when {
+        confirmPassword.isBlank() -> "Please confirm your password."
+        confirmPassword != password -> "Passwords do not match."
+        else -> null
+    }
 }
 
